@@ -25,6 +25,8 @@ export interface OCRBlock {
 
 // OCRワーカーのインスタンス（再利用）
 let worker: Tesseract.Worker | null = null;
+// プログレスコールバック（グローバル管理）
+let progressCallback: ((progress: number) => void) | null = null;
 
 /**
  * OCRワーカーを初期化
@@ -40,8 +42,8 @@ async function getWorker(): Promise<Tesseract.Worker> {
     try {
       worker = await Tesseract.createWorker('jpn_vert', 1, {
         logger: (m) => {
-          if (m.status === 'recognizing text') {
-            // Progress callback handled separately
+          if (m.status === 'recognizing text' && progressCallback) {
+            progressCallback(Math.round(m.progress * 100));
           }
         },
       });
@@ -80,28 +82,28 @@ export async function runOCR(
     throw new Error('無効な画像データ形式です');
   }
 
-  const ocrWorker = await getWorker();
+  // プログレスコールバックを設定
+  progressCallback = onProgress || null;
 
-  const result = await ocrWorker.recognize(imageData, {
-    // @ts-expect-error Tesseract types issue
-    logger: (m: { status: string; progress: number }) => {
-      if (m.status === 'recognizing text' && onProgress) {
-        onProgress(Math.round(m.progress * 100));
-      }
-    },
-  });
+  try {
+    const ocrWorker = await getWorker();
+    const result = await ocrWorker.recognize(imageData);
 
-  const blocks: OCRBlock[] = result.data.blocks?.map((block) => ({
-    text: block.text,
-    bbox: block.bbox,
-    confidence: block.confidence,
-  })) || [];
+    const blocks: OCRBlock[] = result.data.blocks?.map((block) => ({
+      text: block.text,
+      bbox: block.bbox,
+      confidence: block.confidence,
+    })) || [];
 
-  return {
-    text: result.data.text,
-    confidence: result.data.confidence,
-    blocks,
-  };
+    return {
+      text: result.data.text,
+      confidence: result.data.confidence,
+      blocks,
+    };
+  } finally {
+    // プログレスコールバックをクリア
+    progressCallback = null;
+  }
 }
 
 /**
