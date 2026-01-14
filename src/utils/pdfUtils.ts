@@ -7,8 +7,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// PDF.jsのワーカー設定
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`;
+// PDF.jsのワーカー設定（バージョンを合わせる）
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 export interface PDFData {
   pdf: pdfjsLib.PDFDocumentProxy;
