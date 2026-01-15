@@ -20,21 +20,21 @@ export function Header() {
         {/* タブ */}
         <nav className="flex items-center gap-1">
           <button
-            className={`tab ${activeTab === 'extract' ? 'active' : ''}`}
-            onClick={() => setActiveTab('extract')}
-          >
-            <span className="flex items-center gap-1">
-              <FileText className="w-4 h-4" />
-              テキスト抽出
-            </span>
-          </button>
-          <button
             className={`tab ${activeTab === 'layout' ? 'active' : ''}`}
             onClick={() => setActiveTab('layout')}
           >
             <span className="flex items-center gap-1">
               <Layout className="w-4 h-4" />
               トリミング・配置
+            </span>
+          </button>
+          <button
+            className={`tab ${activeTab === 'extract' ? 'active' : ''}`}
+            onClick={() => setActiveTab('extract')}
+          >
+            <span className="flex items-center gap-1">
+              <FileText className="w-4 h-4" />
+              テキスト抽出
             </span>
           </button>
         </nav>

@@ -74,7 +74,7 @@ export const useAppStore = create<Store>()(
       settings: DEFAULT_SETTINGS,
       isProcessing: false,
       progress: null,
-      activeTab: 'extract',
+      activeTab: 'layout',
       selectedSnippetId: null,
       selectedSnippetIds: [],
       selectedPageNumbers: [],
