@@ -14,6 +14,7 @@ import type {
   Snippet,
   LayoutPage,
   PaperSize,
+  PaperOrientation,
   Position,
   Size,
   ExportFormat,
@@ -37,8 +38,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   rubyBracketMode: true,
   showGrid: true,
   gridSize: 10,
-  snapToGrid: true,
+  snapToGrid: false,
   defaultPaperSize: 'A4',
+  defaultPaperOrientation: 'portrait',
 };
 
 interface Store extends AppState, AppActions {
@@ -419,10 +421,11 @@ export const useAppStore = create<Store>()(
       // レイアウト操作
       // P3-002: 再配置エディタ
       // P3-004: 用紙サイズ選択
-      addLayoutPage: (paperSize: PaperSize) => {
+      addLayoutPage: (paperSize: PaperSize, orientation: PaperOrientation) => {
         const newPage: LayoutPage = {
           id: generateId(),
           paperSize,
+          orientation,
           snippets: [],
         };
         set((state) => ({
@@ -488,6 +491,19 @@ export const useAppStore = create<Store>()(
                   snippets: page.snippets.map((s) =>
                     s.snippetId === snippetId ? { ...s, size } : s
                   ),
+                }
+              : page
+          ),
+        }));
+      },
+
+      applySnippetSizeToLayout: (pageId: string, size: Size) => {
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  snippets: page.snippets.map((s) => ({ ...s, size })),
                 }
               : page
           ),

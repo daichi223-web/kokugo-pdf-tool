@@ -8,7 +8,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { mmToPx } from '../utils/helpers';
 import type { LayoutPage, Snippet, Position } from '../types';
-import { PAPER_SIZES } from '../types';
+import { getPaperDimensions } from '../types';
 
 interface LayoutCanvasProps {
   layoutPage: LayoutPage;
@@ -39,9 +39,15 @@ export function LayoutCanvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
-  const [resizing, setResizing] = useState<{ snippetId: string; handle: string; startSize: { width: number; height: number }; startPos: Position } | null>(null);
+  const [resizing, setResizing] = useState<{
+    snippetId: string;
+    handle: string;
+    startSize: { width: number; height: number };
+    startPos: Position;
+    startPosition: Position;
+  } | null>(null);
 
-  const paperSize = PAPER_SIZES[layoutPage.paperSize];
+  const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
   const margin = 15; // 15mm余白
   const canvasWidth = mmToPx(paperSize.width, 96); // 96 DPI for screen
   const canvasHeight = mmToPx(paperSize.height, 96);
@@ -96,6 +102,7 @@ export function LayoutCanvas({
           x: (e.clientX - rect.left) / zoom,
           y: (e.clientY - rect.top) / zoom,
         },
+        startPosition: { ...placed.position },
       });
       setSelectedSnippet(snippetId);
     },
@@ -117,19 +124,92 @@ export function LayoutCanvas({
         const dx = currentX - resizing.startPos.x;
         const dy = currentY - resizing.startPos.y;
 
-        let newWidth = resizing.startSize.width;
-        let newHeight = resizing.startSize.height;
+        const minSize = 20;
+        const startWidth = resizing.startSize.width;
+        const startHeight = resizing.startSize.height;
+        const leftEdge = resizing.startPosition.x;
+        const rightEdge = resizing.startPosition.x + startWidth;
+        const topEdge = resizing.startPosition.y;
+        const bottomEdge = resizing.startPosition.y + startHeight;
 
-        // ハンドルに応じてサイズ変更
-        if (resizing.handle.includes('e')) newWidth = Math.max(20, resizing.startSize.width + dx);
-        if (resizing.handle.includes('w')) newWidth = Math.max(20, resizing.startSize.width - dx);
-        if (resizing.handle.includes('s')) newHeight = Math.max(20, resizing.startSize.height + dy);
-        if (resizing.handle.includes('n')) newHeight = Math.max(20, resizing.startSize.height - dy);
+        let newWidth = startWidth;
+        let newHeight = startHeight;
+        let newX = leftEdge;
+        let newY = topEdge;
 
-        const snappedSize = snapPosition({ x: newWidth, y: newHeight });
+        switch (resizing.handle) {
+          case 'e':
+            newWidth = startWidth + dx;
+            break;
+          case 'w':
+            newWidth = startWidth - dx;
+            newX = rightEdge - newWidth;
+            break;
+          case 's':
+            newHeight = startHeight + dy;
+            break;
+          case 'n':
+            newHeight = startHeight - dy;
+            newY = bottomEdge - newHeight;
+            break;
+          case 'se':
+            newWidth = startWidth + dx;
+            newHeight = startHeight + dy;
+            break;
+          case 'sw':
+            newWidth = startWidth - dx;
+            newHeight = startHeight + dy;
+            newX = rightEdge - newWidth;
+            break;
+          case 'ne':
+            newWidth = startWidth + dx;
+            newHeight = startHeight - dy;
+            newY = bottomEdge - newHeight;
+            break;
+          case 'nw':
+            newWidth = startWidth - dx;
+            newHeight = startHeight - dy;
+            newX = rightEdge - newWidth;
+            newY = bottomEdge - newHeight;
+            break;
+          default:
+            break;
+        }
+
+        newWidth = Math.max(minSize, newWidth);
+        newHeight = Math.max(minSize, newHeight);
+
+        if (resizing.handle.includes('w')) {
+          newX = rightEdge - newWidth;
+        }
+        if (resizing.handle.includes('n')) {
+          newY = bottomEdge - newHeight;
+        }
+
+        if (snapToGrid) {
+          const gridPx = mmToPx(gridSize, 96);
+          const snap = (value: number) => Math.round(value / gridPx) * gridPx;
+          const snappedWidth = Math.max(minSize, snap(newWidth));
+          const snappedHeight = Math.max(minSize, snap(newHeight));
+
+          if (resizing.handle.includes('w')) {
+            newX = rightEdge - snappedWidth;
+          }
+          if (resizing.handle.includes('n')) {
+            newY = bottomEdge - snappedHeight;
+          }
+
+          newWidth = snappedWidth;
+          newHeight = snappedHeight;
+        }
+
+        updateSnippetPosition(layoutPage.id, resizing.snippetId, {
+          x: newX,
+          y: newY,
+        });
         updateSnippetSize(layoutPage.id, resizing.snippetId, {
-          width: snappedSize.x,
-          height: snappedSize.y,
+          width: newWidth,
+          height: newHeight,
         });
         return;
       }
@@ -156,7 +236,18 @@ export function LayoutCanvas({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragging, dragOffset, resizing, zoom, snapPosition, layoutPage.id, updateSnippetPosition, updateSnippetSize]);
+  }, [
+    dragging,
+    dragOffset,
+    resizing,
+    zoom,
+    snapPosition,
+    snapToGrid,
+    gridSize,
+    layoutPage.id,
+    updateSnippetPosition,
+    updateSnippetSize,
+  ]);
 
   // ドロップ受付
   const handleDrop = useCallback(

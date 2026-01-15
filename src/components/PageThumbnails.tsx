@@ -32,21 +32,17 @@ export function PageThumbnails({ file, multiSelectMode = false }: PageThumbnails
         if (e.shiftKey && lastClickedPage !== null) {
           // Shift+クリック: 範囲選択
           selectPageRange(lastClickedPage, pageNumber);
-        } else if (e.ctrlKey || e.metaKey) {
-          // Ctrl/Cmd+クリック: 追加/解除
-          togglePageSelection(pageNumber);
         } else {
-          // 通常クリック: 単一選択（アクティブページも変更）
-          setActivePage(pageNumber);
-          clearPageSelection();
+          // 通常クリック: トグル選択
           togglePageSelection(pageNumber);
         }
+        setActivePage(pageNumber);
         setLastClickedPage(pageNumber);
       } else {
         setActivePage(pageNumber);
       }
     },
-    [multiSelectMode, lastClickedPage, selectPageRange, togglePageSelection, setActivePage, clearPageSelection]
+    [multiSelectMode, lastClickedPage, selectPageRange, togglePageSelection, setActivePage]
   );
 
   const getStatusBadge = (status: string) => {

@@ -12,7 +12,7 @@ import { PDFDocument } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import type { LayoutPage, Snippet } from '../types';
-import { PAPER_SIZES } from '../types';
+import { getPaperDimensions } from '../types';
 import { applyRubyBrackets } from './ocrUtils';
 import { mmToPx } from './helpers';
 
@@ -187,13 +187,12 @@ export async function exportToPDF(
  */
 export async function exportLayoutToPDF(
   layoutPages: LayoutPage[],
-  snippets: Snippet[],
-  paperSizes: typeof PAPER_SIZES
+  snippets: Snippet[]
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
 
   for (const layoutPage of layoutPages) {
-    const paperSize = paperSizes[layoutPage.paperSize];
+    const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
     const pageWidth = mmToPx(paperSize.width, 72); // 72 DPI for PDF points
     const pageHeight = mmToPx(paperSize.height, 72);
 

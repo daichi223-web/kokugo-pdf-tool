@@ -74,6 +74,7 @@ export interface CropArea {
 export interface LayoutPage {
   id: string;
   paperSize: PaperSize;
+  orientation: PaperOrientation;
   snippets: PlacedSnippet[];
 }
 
@@ -94,18 +95,31 @@ export interface Size {
   height: number;
 }
 
-export type PaperSize = 'A4' | 'B4';
+export type PaperSize = 'A4' | 'B4' | 'A3';
+export type PaperOrientation = 'portrait' | 'landscape';
 
 export const PAPER_SIZES: Record<PaperSize, { width: number; height: number; label: string }> = {
   A4: { width: 210, height: 297, label: 'A4 (210×297mm)' },
   B4: { width: 257, height: 364, label: 'B4 (257×364mm)' },
+  A3: { width: 297, height: 420, label: 'A3 (297×420mm)' },
 };
+
+export function getPaperDimensions(
+  paperSize: PaperSize,
+  orientation: PaperOrientation
+): { width: number; height: number } {
+  const base = PAPER_SIZES[paperSize];
+  return orientation === 'portrait'
+    ? { width: base.width, height: base.height }
+    : { width: base.height, height: base.width };
+}
 
 // エクスポート設定の型
 export interface ExportOptions {
   format: ExportFormat;
   includeRuby: boolean;
   paperSize: PaperSize;
+  paperOrientation?: PaperOrientation;
   dpi: number;
   margin: number;
 }
@@ -127,6 +141,7 @@ export interface AppSettings {
   gridSize: number;
   snapToGrid: boolean;
   defaultPaperSize: PaperSize;
+  defaultPaperOrientation: PaperOrientation;
 }
 
 // ストア関連の型
@@ -175,12 +190,13 @@ export interface AppActions {
   removeSnippet: (snippetId: string) => void;
 
   // レイアウト操作
-  addLayoutPage: (paperSize: PaperSize) => void;
+  addLayoutPage: (paperSize: PaperSize, orientation: PaperOrientation) => void;
   removeLayoutPage: (pageId: string) => void;
   setActiveLayoutPage: (pageId: string | null) => void;
   addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetPosition: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetSize: (pageId: string, snippetId: string, size: Size) => void;
+  applySnippetSizeToLayout: (pageId: string, size: Size) => void;
   removeSnippetFromLayout: (pageId: string, snippetId: string) => void;
 
   // エクスポート操作

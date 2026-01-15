@@ -24,7 +24,7 @@ import { SnippetList } from './SnippetList';
 import { LayoutCanvas } from './LayoutCanvas';
 import { CropTool } from './CropTool';
 import { PageThumbnails } from './PageThumbnails';
-import { PAPER_SIZES, type PaperSize, type CropArea } from '../types';
+import { PAPER_SIZES, type PaperOrientation, type PaperSize, type CropArea } from '../types';
 import {
   type TemplateScope,
   type CropTemplate,
@@ -41,17 +41,24 @@ export function LayoutView() {
     layoutPages,
     activeLayoutPageId,
     settings,
+    selectedSnippetId,
     addLayoutPage,
     removeLayoutPage,
     setActiveLayoutPage,
     updateSettings,
     selectedPageNumbers,
     addSnippet,
+    applySnippetSizeToLayout,
   } = useAppStore();
 
   const [zoom, setZoom] = useState(1);
   const [mode, setMode] = useState<'crop' | 'layout'>('crop');
-  const [newPageSize, setNewPageSize] = useState<PaperSize>('A4');
+  const [newPageSize, setNewPageSize] = useState<PaperSize>(
+    settings.defaultPaperSize ?? 'A4'
+  );
+  const [newPageOrientation, setNewPageOrientation] = useState<PaperOrientation>(
+    settings.defaultPaperOrientation ?? 'portrait'
+  );
   const [templateScope, setTemplateScope] = useState<TemplateScope>('global');
   const [showTemplateHistory, setShowTemplateHistory] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<CropTemplate | null>(null);
@@ -60,9 +67,12 @@ export function LayoutView() {
   const activeFile = files.find((f) => f.id === activeFileId);
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
   const activeLayout = layoutPages.find((p) => p.id === activeLayoutPageId);
+  const selectedPlacedSnippet = activeLayout?.snippets.find(
+    (snippet) => snippet.snippetId === selectedSnippetId
+  );
 
   const handleAddPage = () => {
-    addLayoutPage(newPageSize);
+    addLayoutPage(newPageSize, newPageOrientation);
   };
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3));
@@ -248,6 +258,14 @@ export function LayoutView() {
                 </option>
               ))}
             </select>
+            <select
+              className="border rounded px-2 py-1 text-sm"
+              value={newPageOrientation}
+              onChange={(e) => setNewPageOrientation(e.target.value as PaperOrientation)}
+            >
+              <option value="portrait">縦</option>
+              <option value="landscape">横</option>
+            </select>
             <button
               className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
               onClick={handleAddPage}
@@ -278,6 +296,24 @@ export function LayoutView() {
           />
           スナップ
         </label>
+
+        {mode === 'layout' && (
+          <>
+            <div className="w-px h-6 bg-gray-200" />
+            <button
+              className="flex items-center gap-1 px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+              onClick={() => {
+                if (activeLayout && selectedPlacedSnippet) {
+                  applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size);
+                }
+              }}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="選択中のスニペットサイズを全スニペットに適用"
+            >
+              サイズ一括適用
+            </button>
+          </>
+        )}
 
         <div className="w-px h-6 bg-gray-200" />
 
@@ -383,7 +419,9 @@ export function LayoutView() {
                       onKeyDown={(e) => e.key === 'Enter' && setActiveLayoutPage(page.id)}
                     >
                       <span>ページ {index + 1}</span>
-                      <span className="text-xs opacity-75">({page.paperSize})</span>
+                      <span className="text-xs opacity-75">
+                        ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
+                      </span>
                       <button
                         className="ml-1 p-0.5 hover:bg-red-200 rounded"
                         onClick={(e) => {
