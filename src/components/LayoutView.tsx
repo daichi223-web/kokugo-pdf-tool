@@ -17,12 +17,14 @@ import {
   ZoomOut,
   History,
   RotateCcw,
+  Layers,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { SnippetList } from './SnippetList';
 import { LayoutCanvas } from './LayoutCanvas';
 import { CropTool } from './CropTool';
-import { PAPER_SIZES, type PaperSize } from '../types';
+import { PageThumbnails } from './PageThumbnails';
+import { PAPER_SIZES, type PaperSize, type CropArea } from '../types';
 import {
   type TemplateScope,
   type CropTemplate,
@@ -43,6 +45,8 @@ export function LayoutView() {
     removeLayoutPage,
     setActiveLayoutPage,
     updateSettings,
+    selectedPageNumbers,
+    addSnippet,
   } = useAppStore();
 
   const [zoom, setZoom] = useState(1);
@@ -51,6 +55,7 @@ export function LayoutView() {
   const [templateScope, setTemplateScope] = useState<TemplateScope>('global');
   const [showTemplateHistory, setShowTemplateHistory] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<CropTemplate | null>(null);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
@@ -92,6 +97,58 @@ export function LayoutView() {
   }, [templateScope, activeFileId, activePageNumber]);
 
   const templateHistory = getTemplateHistory();
+
+  // BATCH-002: 一括トリミング
+  const handleBatchCrop = useCallback(async (cropArea: CropArea) => {
+    if (!activeFile || selectedPageNumbers.length === 0) return;
+
+    setIsBatchProcessing(true);
+
+    try {
+      for (const pageNumber of selectedPageNumbers) {
+        const page = activeFile.pages.find((p) => p.pageNumber === pageNumber);
+        if (!page?.imageData) continue;
+
+        // 画像を切り出し
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
+
+        const img = new Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject();
+          img.src = page.imageData!;
+        });
+
+        canvas.width = cropArea.width;
+        canvas.height = cropArea.height;
+
+        ctx.drawImage(
+          img,
+          cropArea.x,
+          cropArea.y,
+          cropArea.width,
+          cropArea.height,
+          0,
+          0,
+          cropArea.width,
+          cropArea.height
+        );
+
+        const croppedImageData = canvas.toDataURL('image/png');
+
+        addSnippet({
+          sourceFileId: activeFile.id,
+          sourcePageNumber: pageNumber,
+          cropArea,
+          imageData: croppedImageData,
+        });
+      }
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  }, [activeFile, selectedPageNumbers, addSnippet]);
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -252,20 +309,54 @@ export function LayoutView() {
         {/* スニペットリスト */}
         <SnippetList />
 
+        {/* ページサムネイル（トリミングモード時のみ） */}
+        {mode === 'crop' && activeFile && (
+          <PageThumbnails file={activeFile} multiSelectMode={true} />
+        )}
+
         {/* ワークエリア */}
-        <div className="flex-1 bg-gray-200 rounded-lg overflow-auto p-4">
+        <div className="flex-1 bg-gray-200 rounded-lg overflow-auto p-4 relative">
+          {/* 一括処理中のオーバーレイ */}
+          {isBatchProcessing && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-4 rounded-lg shadow-lg text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                <p>一括トリミング中...</p>
+                <p className="text-sm text-gray-500">{selectedPageNumbers.length}ページ処理中</p>
+              </div>
+            </div>
+          )}
+
           {mode === 'crop' ? (
-            // P3-001: トリミング機能
+            // P3-001: トリミング機能 + BATCH-002: 一括トリミング
             activePage?.imageData ? (
-              <CropTool
-                imageData={activePage.imageData}
-                sourceFileId={activeFileId || ''}
-                sourcePageNumber={activePageNumber}
-                zoom={zoom}
-                templateScope={templateScope}
-                templateToApply={pendingTemplate}
-                onTemplateApplied={() => setPendingTemplate(null)}
-              />
+              <div className="space-y-2">
+                {/* 選択ページ数の表示と一括適用ボタン */}
+                {selectedPageNumbers.length > 1 && (
+                  <div className="bg-blue-100 border border-blue-300 rounded-lg p-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-blue-600" />
+                      <span className="text-blue-800 font-medium">
+                        {selectedPageNumbers.length}ページ選択中
+                      </span>
+                      <span className="text-blue-600 text-sm">
+                        （最初のページで範囲を指定→全ページに適用）
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <CropTool
+                  imageData={activePage.imageData}
+                  sourceFileId={activeFileId || ''}
+                  sourcePageNumber={activePageNumber}
+                  zoom={zoom}
+                  templateScope={templateScope}
+                  templateToApply={pendingTemplate}
+                  onTemplateApplied={() => setPendingTemplate(null)}
+                  batchMode={selectedPageNumbers.length > 1}
+                  onBatchCrop={handleBatchCrop}
+                />
+              </div>
             ) : (
               <div className="h-full flex items-center justify-center text-gray-500">
                 左のサイドバーからPDFを選択してください

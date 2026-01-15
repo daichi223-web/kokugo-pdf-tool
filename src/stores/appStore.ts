@@ -65,6 +65,7 @@ export const useAppStore = create<Store>()(
       progress: null,
       activeTab: 'extract',
       selectedSnippetId: null,
+      selectedPageNumbers: [],
       benchmarkResult: null,
       isBenchmarkMode: false,
 
@@ -485,6 +486,42 @@ export const useAppStore = create<Store>()(
       // P1-009: プログレス表示
       setProgress: (progress: ProgressInfo | null) => {
         set({ progress });
+      },
+
+      // ページ複数選択操作
+      togglePageSelection: (pageNumber: number) => {
+        set((state) => {
+          const selected = state.selectedPageNumbers;
+          if (selected.includes(pageNumber)) {
+            return { selectedPageNumbers: selected.filter((n) => n !== pageNumber) };
+          } else {
+            return { selectedPageNumbers: [...selected, pageNumber].sort((a, b) => a - b) };
+          }
+        });
+      },
+
+      selectPageRange: (start: number, end: number) => {
+        const min = Math.min(start, end);
+        const max = Math.max(start, end);
+        const range: number[] = [];
+        for (let i = min; i <= max; i++) {
+          range.push(i);
+        }
+        set({ selectedPageNumbers: range });
+      },
+
+      clearPageSelection: () => {
+        set({ selectedPageNumbers: [] });
+      },
+
+      selectAllPages: () => {
+        const activeFile = get().files.find((f) => f.id === get().activeFileId);
+        if (!activeFile) return;
+        const allPages: number[] = [];
+        for (let i = 1; i <= activeFile.pageCount; i++) {
+          allPages.push(i);
+        }
+        set({ selectedPageNumbers: allPages });
       },
 
       // NF-003: パフォーマンス計測

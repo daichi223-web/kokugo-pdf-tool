@@ -23,6 +23,8 @@ interface CropToolProps {
   templateScope: TemplateScope;
   templateToApply?: CropTemplate | null;
   onTemplateApplied?: () => void;
+  batchMode?: boolean;
+  onBatchCrop?: (cropArea: CropArea) => void;
 }
 
 type DragMode = 'none' | 'select' | 'move' | 'resize-nw' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w';
@@ -37,6 +39,8 @@ export function CropTool({
   templateScope,
   templateToApply,
   onTemplateApplied,
+  batchMode = false,
+  onBatchCrop,
 }: CropToolProps) {
   const { addSnippet } = useAppStore();
 
@@ -341,15 +345,20 @@ export function CropTool({
       sourcePageNumber
     );
 
-    addSnippet({
-      sourceFileId,
-      sourcePageNumber,
-      cropArea: selection,
-      imageData: croppedImageData,
-    });
+    // BATCH-002: 一括モードの場合はonBatchCropを呼び出し
+    if (batchMode && onBatchCrop) {
+      onBatchCrop(selection);
+    } else {
+      addSnippet({
+        sourceFileId,
+        sourcePageNumber,
+        cropArea: selection,
+        imageData: croppedImageData,
+      });
+    }
 
     setSelection(null);
-  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, addSnippet]);
+  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, addSnippet, batchMode, onBatchCrop]);
 
   const handleCancel = useCallback(() => {
     setSelection(null);
@@ -438,12 +447,14 @@ export function CropTool({
           style={{ top: buttonPos.top, right: buttonPos.right }}
         >
           <button
-            className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded shadow-lg hover:bg-green-600"
+            className={`flex items-center gap-1 px-3 py-2 text-white rounded shadow-lg ${
+              batchMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-green-500 hover:bg-green-600'
+            }`}
             onClick={handleConfirm}
-            aria-label="選択範囲を切り出し"
+            aria-label={batchMode ? '選択ページに一括適用' : '選択範囲を切り出し'}
           >
             <Check className="w-4 h-4" />
-            切り出し
+            {batchMode ? '一括適用' : '切り出し'}
           </button>
           <button
             className="flex items-center gap-1 px-2 py-2 bg-gray-500 text-white rounded shadow-lg hover:bg-gray-600"

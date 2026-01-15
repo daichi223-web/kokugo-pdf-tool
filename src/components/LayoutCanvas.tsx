@@ -234,18 +234,19 @@ export function LayoutCanvas({
             {isSelected && (
               <>
                 {/* 4隅 */}
-                <div className="snippet-handle -left-1.5 -top-1.5 cursor-nwse-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'nw')} />
-                <div className="snippet-handle -right-1.5 -top-1.5 cursor-nesw-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'ne')} />
-                <div className="snippet-handle -left-1.5 -bottom-1.5 cursor-nesw-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'sw')} />
-                <div className="snippet-handle -right-1.5 -bottom-1.5 cursor-nwse-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'se')} />
+                <div className="snippet-handle cursor-nwse-resize" style={{ left: -8, top: -8 }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'nw')} />
+                <div className="snippet-handle cursor-nesw-resize" style={{ right: -8, top: -8 }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'ne')} />
+                <div className="snippet-handle cursor-nesw-resize" style={{ left: -8, bottom: -8 }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'sw')} />
+                <div className="snippet-handle cursor-nwse-resize" style={{ right: -8, bottom: -8 }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'se')} />
                 {/* 4辺中央 */}
-                <div className="snippet-handle left-1/2 -translate-x-1/2 -top-1.5 cursor-ns-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'n')} />
-                <div className="snippet-handle left-1/2 -translate-x-1/2 -bottom-1.5 cursor-ns-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 's')} />
-                <div className="snippet-handle -left-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'w')} />
-                <div className="snippet-handle -right-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'e')} />
+                <div className="snippet-handle cursor-ns-resize" style={{ left: '50%', top: -8, transform: 'translateX(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'n')} />
+                <div className="snippet-handle cursor-ns-resize" style={{ left: '50%', bottom: -8, transform: 'translateX(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 's')} />
+                <div className="snippet-handle cursor-ew-resize" style={{ left: -8, top: '50%', transform: 'translateY(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'w')} />
+                <div className="snippet-handle cursor-ew-resize" style={{ right: -8, top: '50%', transform: 'translateY(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'e')} />
                 {/* 削除ボタン */}
                 <button
-                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 z-10"
+                  className="absolute w-6 h-6 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 flex items-center justify-center"
+                  style={{ right: -12, top: -12, zIndex: 30 }}
                   onClick={(e) => {
                     e.stopPropagation();
                     removeSnippetFromLayout(layoutPage.id, placed.snippetId);
@@ -253,6 +254,10 @@ export function LayoutCanvas({
                 >
                   ×
                 </button>
+                {/* サイズ表示 */}
+                <div className="absolute -bottom-6 left-0 bg-blue-600 text-white text-xs px-2 py-0.5 rounded whitespace-nowrap" style={{ zIndex: 25 }}>
+                  {Math.round(placed.size.width)} × {Math.round(placed.size.height)}
+                </div>
               </>
             )}
           </div>

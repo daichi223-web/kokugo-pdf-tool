@@ -147,6 +147,7 @@ export interface AppState {
   // UI状態
   activeTab: 'extract' | 'layout';
   selectedSnippetId: string | null;
+  selectedPageNumbers: number[];  // 複数ページ選択用
 }
 
 // アクション型
@@ -187,4 +188,10 @@ export interface AppActions {
   setActiveTab: (tab: 'extract' | 'layout') => void;
   setSelectedSnippet: (snippetId: string | null) => void;
   setProgress: (progress: ProgressInfo | null) => void;
+
+  // ページ複数選択操作
+  togglePageSelection: (pageNumber: number) => void;
+  selectPageRange: (start: number, end: number) => void;
+  clearPageSelection: () => void;
+  selectAllPages: () => void;
 }

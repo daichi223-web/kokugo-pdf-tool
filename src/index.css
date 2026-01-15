@@ -109,14 +109,20 @@ body {
 /* スニペット */
 .snippet {
   @apply absolute cursor-move border-2 border-transparent hover:border-blue-400;
+  overflow: visible;
 }
 
 .snippet.selected {
-  @apply border-blue-500;
+  @apply border-blue-500 shadow-lg;
 }
 
 .snippet-handle {
-  @apply absolute w-3 h-3 bg-blue-500 border border-white rounded-full;
+  @apply absolute w-4 h-4 bg-blue-500 border-2 border-white rounded-full;
+  z-index: 20;
+}
+
+.snippet-handle:hover {
+  @apply bg-blue-600 scale-125;
 }
 
 /* ツールバー */
