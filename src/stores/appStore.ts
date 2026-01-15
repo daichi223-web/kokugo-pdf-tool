@@ -76,6 +76,7 @@ export const useAppStore = create<Store>()(
       progress: null,
       activeTab: 'extract',
       selectedSnippetId: null,
+      selectedSnippetIds: [],
       selectedPageNumbers: [],
       benchmarkResult: null,
       isBenchmarkMode: false,
@@ -697,6 +698,283 @@ export const useAppStore = create<Store>()(
       // スニペット再トリミング
       setReCropSnippet: (snippetId: string | null) => {
         set({ reCropSnippetId: snippetId });
+      },
+
+      // 配置済みスニペット複数選択
+      togglePlacedSnippetSelection: (snippetId: string) => {
+        set((state) => {
+          const selected = state.selectedSnippetIds;
+          if (selected.includes(snippetId)) {
+            return { selectedSnippetIds: selected.filter((id) => id !== snippetId) };
+          } else {
+            return { selectedSnippetIds: [...selected, snippetId] };
+          }
+        });
+      },
+
+      clearPlacedSnippetSelection: () => {
+        set({ selectedSnippetIds: [] });
+      },
+
+      selectAllPlacedSnippets: (pageId: string) => {
+        const page = get().layoutPages.find((p) => p.id === pageId);
+        if (!page) return;
+        set({ selectedSnippetIds: page.snippets.map((s) => s.snippetId) });
+      },
+
+      // グリッド配置
+      arrangeSnippetsInGrid: (pageId: string, cols: number, rows: number, orderHorizontal: boolean) => {
+        const { layoutPages, selectedSnippetIds, snippets } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        // 選択されたスニペットを取得（選択順を維持）
+        const selectedPlaced = selectedSnippetIds
+          .map((id) => page.snippets.find((s) => s.snippetId === id))
+          .filter((s): s is NonNullable<typeof s> => s !== undefined);
+
+        if (selectedPlaced.length === 0) return;
+
+        // 用紙サイズを取得
+        const { getPaperDimensions } = require('../types');
+        const { mmToPx } = require('../utils/helpers');
+        const paperSize = getPaperDimensions(page.paperSize, page.orientation);
+        const pageWidth = mmToPx(paperSize.width, 96);
+        const pageHeight = mmToPx(paperSize.height, 96);
+        const margin = mmToPx(15, 96);
+
+        // 配置可能エリア
+        const availableWidth = pageWidth - margin * 2;
+        const availableHeight = pageHeight - margin * 2;
+
+        // セルサイズ
+        const cellWidth = availableWidth / cols;
+        const cellHeight = availableHeight / rows;
+
+        // グリッド配置
+        const newSnippets = page.snippets.map((placed) => {
+          const selectedIndex = selectedSnippetIds.indexOf(placed.snippetId);
+          if (selectedIndex === -1) return placed;
+
+          let gridIndex: number;
+          if (orderHorizontal) {
+            // 横優先（→）: 0,1,2,3 / 4,5,6,7
+            gridIndex = selectedIndex;
+          } else {
+            // 縦優先（↓）: 0,2,4,6 / 1,3,5,7
+            const col = Math.floor(selectedIndex / rows);
+            const row = selectedIndex % rows;
+            gridIndex = row * cols + col;
+          }
+
+          const col = gridIndex % cols;
+          const row = Math.floor(gridIndex / cols);
+
+          // セル内で中央配置
+          const snippet = snippets.find((s) => s.id === placed.snippetId);
+          const snippetWidth = snippet ? snippet.cropArea.width : placed.size.width;
+          const snippetHeight = snippet ? snippet.cropArea.height : placed.size.height;
+
+          // サイズをセルに収まるように調整
+          const scale = Math.min(cellWidth / snippetWidth, cellHeight / snippetHeight, 1);
+          const newWidth = snippetWidth * scale;
+          const newHeight = snippetHeight * scale;
+
+          return {
+            ...placed,
+            position: {
+              x: col * cellWidth + (cellWidth - newWidth) / 2,
+              y: row * cellHeight + (cellHeight - newHeight) / 2,
+            },
+            size: {
+              width: newWidth,
+              height: newHeight,
+            },
+          };
+        });
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId ? { ...p, snippets: newSnippets } : p
+          ),
+        }));
+      },
+
+      // 整列機能
+      alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => {
+        const { layoutPages, selectedSnippetIds } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || selectedSnippetIds.length < 2) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        const selectedPlaced = page.snippets.filter((s) =>
+          selectedSnippetIds.includes(s.snippetId)
+        );
+
+        let targetValue: number;
+        switch (alignment) {
+          case 'top':
+            targetValue = Math.min(...selectedPlaced.map((s) => s.position.y));
+            break;
+          case 'left':
+            targetValue = Math.min(...selectedPlaced.map((s) => s.position.x));
+            break;
+          case 'bottom':
+            targetValue = Math.max(...selectedPlaced.map((s) => s.position.y + s.size.height));
+            break;
+          case 'right':
+            targetValue = Math.max(...selectedPlaced.map((s) => s.position.x + s.size.width));
+            break;
+        }
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  snippets: p.snippets.map((s) => {
+                    if (!selectedSnippetIds.includes(s.snippetId)) return s;
+                    switch (alignment) {
+                      case 'top':
+                        return { ...s, position: { ...s.position, y: targetValue } };
+                      case 'left':
+                        return { ...s, position: { ...s.position, x: targetValue } };
+                      case 'bottom':
+                        return { ...s, position: { ...s.position, y: targetValue - s.size.height } };
+                      case 'right':
+                        return { ...s, position: { ...s.position, x: targetValue - s.size.width } };
+                      default:
+                        return s;
+                    }
+                  }),
+                }
+              : p
+          ),
+        }));
+      },
+
+      // 等間隔配置
+      distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => {
+        const { layoutPages, selectedSnippetIds } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || selectedSnippetIds.length < 3) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        const selectedPlaced = page.snippets
+          .filter((s) => selectedSnippetIds.includes(s.snippetId))
+          .sort((a, b) =>
+            direction === 'horizontal'
+              ? a.position.x - b.position.x
+              : a.position.y - b.position.y
+          );
+
+        if (direction === 'horizontal') {
+          const first = selectedPlaced[0];
+          const last = selectedPlaced[selectedPlaced.length - 1];
+          const totalWidth = selectedPlaced.reduce((sum, s) => sum + s.size.width, 0);
+          const totalSpace = last.position.x + last.size.width - first.position.x - totalWidth;
+          const gap = totalSpace / (selectedPlaced.length - 1);
+
+          let currentX = first.position.x;
+          const positionMap = new Map<string, number>();
+          selectedPlaced.forEach((s) => {
+            positionMap.set(s.snippetId, currentX);
+            currentX += s.size.width + gap;
+          });
+
+          set((state) => ({
+            layoutPages: state.layoutPages.map((p) =>
+              p.id === pageId
+                ? {
+                    ...p,
+                    snippets: p.snippets.map((s) => {
+                      const newX = positionMap.get(s.snippetId);
+                      return newX !== undefined
+                        ? { ...s, position: { ...s.position, x: newX } }
+                        : s;
+                    }),
+                  }
+                : p
+            ),
+          }));
+        } else {
+          const first = selectedPlaced[0];
+          const last = selectedPlaced[selectedPlaced.length - 1];
+          const totalHeight = selectedPlaced.reduce((sum, s) => sum + s.size.height, 0);
+          const totalSpace = last.position.y + last.size.height - first.position.y - totalHeight;
+          const gap = totalSpace / (selectedPlaced.length - 1);
+
+          let currentY = first.position.y;
+          const positionMap = new Map<string, number>();
+          selectedPlaced.forEach((s) => {
+            positionMap.set(s.snippetId, currentY);
+            currentY += s.size.height + gap;
+          });
+
+          set((state) => ({
+            layoutPages: state.layoutPages.map((p) =>
+              p.id === pageId
+                ? {
+                    ...p,
+                    snippets: p.snippets.map((s) => {
+                      const newY = positionMap.get(s.snippetId);
+                      return newY !== undefined
+                        ? { ...s, position: { ...s.position, y: newY } }
+                        : s;
+                    }),
+                  }
+                : p
+            ),
+          }));
+        }
+      },
+
+      // サイズ統一
+      unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => {
+        const { layoutPages, selectedSnippetIds } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || selectedSnippetIds.length < 2) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        const selectedPlaced = page.snippets.filter((s) =>
+          selectedSnippetIds.includes(s.snippetId)
+        );
+
+        // 最初に選択したスニペットのサイズを基準にする
+        const reference = selectedPlaced[0];
+        if (!reference) return;
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  snippets: p.snippets.map((s) => {
+                    if (!selectedSnippetIds.includes(s.snippetId)) return s;
+                    switch (dimension) {
+                      case 'width':
+                        return { ...s, size: { ...s.size, width: reference.size.width } };
+                      case 'height':
+                        return { ...s, size: { ...s.size, height: reference.size.height } };
+                      case 'both':
+                        return { ...s, size: { ...reference.size } };
+                      default:
+                        return s;
+                    }
+                  }),
+                }
+              : p
+          ),
+        }));
       },
 
       // NF-003: パフォーマンス計測

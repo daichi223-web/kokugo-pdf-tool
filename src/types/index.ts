@@ -168,6 +168,7 @@ export interface AppState {
   // UI状態
   activeTab: 'extract' | 'layout';
   selectedSnippetId: string | null;
+  selectedSnippetIds: string[];  // 配置済みスニペットの複数選択用
   selectedPageNumbers: number[];  // 複数ページ選択用
 }
 
@@ -217,4 +218,15 @@ export interface AppActions {
   selectPageRange: (start: number, end: number) => void;
   clearPageSelection: () => void;
   selectAllPages: () => void;
+
+  // 配置済みスニペット複数選択操作
+  togglePlacedSnippetSelection: (snippetId: string) => void;
+  clearPlacedSnippetSelection: () => void;
+  selectAllPlacedSnippets: (pageId: string) => void;
+
+  // 配置操作（グリッド配置・整列）
+  arrangeSnippetsInGrid: (pageId: string, cols: number, rows: number, orderHorizontal: boolean) => void;
+  alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => void;
+  distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
+  unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => void;
 }

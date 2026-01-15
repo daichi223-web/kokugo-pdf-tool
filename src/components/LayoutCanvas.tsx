@@ -36,6 +36,9 @@ export function LayoutCanvas({
     addSnippetToLayout,
     pushLayoutHistory,
     undoLayout,
+    selectedSnippetIds,
+    togglePlacedSnippetSelection,
+    clearPlacedSnippetSelection,
   } = useAppStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -329,7 +332,10 @@ export function LayoutCanvas({
       }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      onClick={() => setSelectedSnippet(null)}
+      onClick={() => {
+        setSelectedSnippet(null);
+        clearPlacedSnippetSelection();
+      }}
     >
       {/* 余白ガイド */}
       <div
@@ -420,21 +426,31 @@ export function LayoutCanvas({
         if (!snippet) return null;
 
         const isSelected = selectedSnippetId === placed.snippetId;
+        const isMultiSelected = selectedSnippetIds.includes(placed.snippetId);
 
         return (
           <div
             key={placed.snippetId}
-            className={`snippet ${isSelected ? 'selected' : ''}`}
+            className={`snippet ${isSelected ? 'selected' : ''} ${isMultiSelected ? 'multi-selected' : ''}`}
             style={{
               left: (marginPx + placed.position.x) * zoom,
               top: (marginPx + placed.position.y) * zoom,
               width: placed.size.width * zoom,
               height: placed.size.height * zoom,
+              borderColor: isMultiSelected ? '#f59e0b' : undefined,
+              borderWidth: isMultiSelected ? '2px' : undefined,
             }}
             onMouseDown={(e) => handleDragStart(e, placed.snippetId)}
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedSnippet(placed.snippetId);
+              if (e.ctrlKey || e.metaKey) {
+                // Ctrl+クリックで複数選択トグル
+                togglePlacedSnippetSelection(placed.snippetId);
+              } else {
+                // 通常クリックで単一選択
+                clearPlacedSnippetSelection();
+                setSelectedSnippet(placed.snippetId);
+              }
             }}
           >
             <img
