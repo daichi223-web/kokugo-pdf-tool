@@ -226,6 +226,7 @@ export interface AppActions {
 
   // 配置操作（グリッド配置・整列）
   arrangeSnippetsInGrid: (pageId: string, cols: number, rows: number, orderHorizontal: boolean) => void;
+  arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number) => void;
   alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => void;
   distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => void;

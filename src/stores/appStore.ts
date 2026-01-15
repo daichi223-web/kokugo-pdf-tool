@@ -803,6 +803,64 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // 全スニペットをグリッド配置（スニペットリストから一括配置）
+      arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number) => {
+        const { layoutPages, snippets } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || snippets.length === 0) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        // 用紙サイズを取得
+        const { getPaperDimensions } = require('../types');
+        const { mmToPx } = require('../utils/helpers');
+        const paperSize = getPaperDimensions(page.paperSize, page.orientation);
+        const pageWidth = mmToPx(paperSize.width, 96);
+        const pageHeight = mmToPx(paperSize.height, 96);
+        const margin = mmToPx(15, 96);
+
+        // 配置可能エリア
+        const availableWidth = pageWidth - margin * 2;
+        const availableHeight = pageHeight - margin * 2;
+
+        // セルサイズ
+        const cellWidth = availableWidth / cols;
+        const cellHeight = availableHeight / rows;
+
+        // 全スニペットをリスト順（作成順）で配置
+        const newPlacedSnippets = snippets.map((snippet, index) => {
+          const col = index % cols;
+          const row = Math.floor(index / cols);
+
+          // セルに収まるようにサイズを調整
+          const snippetWidth = snippet.cropArea.width;
+          const snippetHeight = snippet.cropArea.height;
+          const scale = Math.min(cellWidth / snippetWidth, cellHeight / snippetHeight, 1);
+          const newWidth = snippetWidth * scale;
+          const newHeight = snippetHeight * scale;
+
+          return {
+            snippetId: snippet.id,
+            position: {
+              x: col * cellWidth + (cellWidth - newWidth) / 2,
+              y: row * cellHeight + (cellHeight - newHeight) / 2,
+            },
+            size: {
+              width: newWidth,
+              height: newHeight,
+            },
+            rotation: 0,
+          };
+        });
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId ? { ...p, snippets: newPlacedSnippets } : p
+          ),
+        }));
+      },
+
       // 整列機能
       alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => {
         const { layoutPages, selectedSnippetIds } = get();

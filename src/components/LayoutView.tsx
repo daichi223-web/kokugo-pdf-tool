@@ -20,8 +20,6 @@ import {
   Layers,
   AlignStartVertical,
   AlignStartHorizontal,
-  ArrowRight,
-  ArrowDown,
   Equal,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
@@ -59,7 +57,6 @@ export function LayoutView() {
     reCropSnippetId,
     setReCropSnippet,
     selectedSnippetIds,
-    arrangeSnippetsInGrid,
     alignSnippets,
     unifySnippetSize,
   } = useAppStore();
@@ -436,77 +433,33 @@ export function LayoutView() {
           </>
         )}
 
-        {/* 配置・整列ツール（配置モード時のみ） */}
-        {mode === 'layout' && activeLayout && (
+        {/* 選択時のみ表示：整列・サイズ統一ツール */}
+        {mode === 'layout' && activeLayout && selectedSnippetIds.length >= 2 && (
           <>
             <div className="w-px h-6 bg-gray-200" />
 
             {/* 選択数表示 */}
-            {selectedSnippetIds.length > 0 && (
-              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
-                {selectedSnippetIds.length}個選択中
-              </span>
-            )}
-
-            {/* グリッド配置ボタン */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-500">配置:</span>
-              <button
-                className="flex items-center gap-0.5 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
-                onClick={() => arrangeSnippetsInGrid(activeLayout.id, 4, 2, true)}
-                disabled={selectedSnippetIds.length < 2}
-                title="4列×2行に配置（横順）"
-              >
-                4×2 <ArrowRight className="w-3 h-3" />
-              </button>
-              <button
-                className="flex items-center gap-0.5 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
-                onClick={() => arrangeSnippetsInGrid(activeLayout.id, 4, 3, true)}
-                disabled={selectedSnippetIds.length < 2}
-                title="4列×3行に配置（横順）"
-              >
-                4×3 <ArrowRight className="w-3 h-3" />
-              </button>
-              <button
-                className="flex items-center gap-0.5 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
-                onClick={() => arrangeSnippetsInGrid(activeLayout.id, 2, 2, true)}
-                disabled={selectedSnippetIds.length < 2}
-                title="2列×2行に配置（横順）"
-              >
-                2×2 <ArrowRight className="w-3 h-3" />
-              </button>
-              <button
-                className="flex items-center gap-0.5 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
-                onClick={() => arrangeSnippetsInGrid(activeLayout.id, 2, 2, false)}
-                disabled={selectedSnippetIds.length < 2}
-                title="2列×2行に配置（縦順）"
-              >
-                2×2 <ArrowDown className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="w-px h-6 bg-gray-200" />
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
+              {selectedSnippetIds.length}個選択中
+            </span>
 
             {/* 整列ボタン */}
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-500">整列:</span>
               <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
                 onClick={() => alignSnippets(activeLayout.id, 'top')}
-                disabled={selectedSnippetIds.length < 2}
                 title="上揃え"
               >
                 <AlignStartVertical className="w-3 h-3" />
-                上
+                上揃え
               </button>
               <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
                 onClick={() => alignSnippets(activeLayout.id, 'left')}
-                disabled={selectedSnippetIds.length < 2}
                 title="左揃え"
               >
                 <AlignStartHorizontal className="w-3 h-3" />
-                左
+                左揃え
               </button>
             </div>
 
@@ -514,24 +467,21 @@ export function LayoutView() {
 
             {/* サイズ統一ボタン */}
             <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-500">統一:</span>
               <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
                 onClick={() => unifySnippetSize(activeLayout.id, 'height')}
-                disabled={selectedSnippetIds.length < 2}
                 title="高さを統一（最初の選択に合わせる）"
               >
                 <Equal className="w-3 h-3 rotate-90" />
-                高さ
+                高さ統一
               </button>
               <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
                 onClick={() => unifySnippetSize(activeLayout.id, 'width')}
-                disabled={selectedSnippetIds.length < 2}
                 title="幅を統一（最初の選択に合わせる）"
               >
                 <Equal className="w-3 h-3" />
-                幅
+                幅統一
               </button>
             </div>
           </>
