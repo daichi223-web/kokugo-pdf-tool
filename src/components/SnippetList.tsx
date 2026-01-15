@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { useState } from 'react';
-import { Trash2, Move, Crop, LayoutGrid } from 'lucide-react';
+import { Trash2, Move, Crop, LayoutGrid, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
 type GridPattern = '4x2' | '4x3' | '3x2' | '2x2' | 'auto';
@@ -40,6 +40,8 @@ export function SnippetList() {
   } = useAppStore();
 
   const [gridPattern, setGridPattern] = useState<GridPattern>('4x2');
+  const [gapX, setGapX] = useState(0); // 横の間隔（px）
+  const [gapY, setGapY] = useState(0); // 縦の間隔（px）
 
   const handleDragStart = (e: React.DragEvent, snippetId: string) => {
     e.dataTransfer.setData('snippetId', snippetId);
@@ -65,8 +67,10 @@ export function SnippetList() {
       rows = GRID_PATTERNS[gridPattern].rows;
     }
 
-    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows);
+    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, gapX, gapY);
   };
+
+  const GAP_STEP = 10; // 間隔調整のステップ（px）
 
   return (
     <div className="w-48 bg-white rounded-lg shadow overflow-hidden flex flex-col">
@@ -160,6 +164,49 @@ export function SnippetList() {
               ))}
             </select>
           </div>
+
+          {/* 間隔調整 */}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">間隔:</span>
+            <div className="flex items-center gap-1">
+              {/* 横間隔 */}
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => setGapX(Math.max(0, gapX - GAP_STEP))}
+                title="横間隔を狭める"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="w-6 text-center">{gapX}</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => setGapX(gapX + GAP_STEP)}
+                title="横間隔を広げる"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+
+              <span className="mx-1 text-gray-300">|</span>
+
+              {/* 縦間隔 */}
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => setGapY(Math.max(0, gapY - GAP_STEP))}
+                title="縦間隔を狭める"
+              >
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <span className="w-6 text-center">{gapY}</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => setGapY(gapY + GAP_STEP)}
+                title="縦間隔を広げる"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
           <button
             className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             onClick={handleArrangeAll}

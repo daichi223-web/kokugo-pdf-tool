@@ -803,7 +803,7 @@ export const useAppStore = create<Store>()(
       },
 
       // 全スニペットをグリッド配置（スニペットリストから一括配置）
-      arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number) => {
+      arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX: number = 0, gapY: number = 0) => {
         const { layoutPages, snippets } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || snippets.length === 0) return;
@@ -817,9 +817,11 @@ export const useAppStore = create<Store>()(
         const pageHeight = mmToPx(paperSize.height, 96);
         const margin = mmToPx(15, 96);
 
-        // 配置可能エリア
-        const availableWidth = pageWidth - margin * 2;
-        const availableHeight = pageHeight - margin * 2;
+        // 配置可能エリア（間隔分を引く）
+        const totalGapX = gapX * (cols - 1);
+        const totalGapY = gapY * (rows - 1);
+        const availableWidth = pageWidth - margin * 2 - totalGapX;
+        const availableHeight = pageHeight - margin * 2 - totalGapY;
 
         // セルサイズ
         const cellWidth = availableWidth / cols;
@@ -840,8 +842,8 @@ export const useAppStore = create<Store>()(
           return {
             snippetId: snippet.id,
             position: {
-              x: col * cellWidth + (cellWidth - newWidth) / 2,
-              y: row * cellHeight + (cellHeight - newHeight) / 2,
+              x: col * (cellWidth + gapX) + (cellWidth - newWidth) / 2,
+              y: row * (cellHeight + gapY) + (cellHeight - newHeight) / 2,
             },
             size: {
               width: newWidth,
