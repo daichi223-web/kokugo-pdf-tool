@@ -1,66 +1,294 @@
 // =============================================================================
-// トリミングツールコンポーネント
+// トリミングツールコンポーネント（改良版）
 // P3-001: トリミング機能
+// CROP-001〜006: 画面外ドラッグ、移動、リサイズ、テンプレート
 // =============================================================================
 
-import { useState, useRef, useCallback } from 'react';
-import { Crop, Check, X, AlertCircle } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Crop, Check, X, AlertCircle, Move } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import type { CropArea } from '../types';
+import {
+  saveTemplate,
+  clampSelectionToImage,
+  type TemplateScope,
+  type CropTemplate,
+} from '../utils/cropTemplateUtils';
 
 interface CropToolProps {
   imageData: string;
   sourceFileId: string;
   sourcePageNumber: number;
   zoom: number;
+  templateScope: TemplateScope;
+  templateToApply?: CropTemplate | null;
+  onTemplateApplied?: () => void;
 }
+
+type DragMode = 'none' | 'select' | 'move' | 'resize-nw' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w';
+
+const HANDLE_SIZE = 10;
 
 export function CropTool({
   imageData,
   sourceFileId,
   sourcePageNumber,
   zoom,
+  templateScope,
+  templateToApply,
+  onTemplateApplied,
 }: CropToolProps) {
   const { addSnippet } = useAppStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isSelecting, setIsSelecting] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
   const [selection, setSelection] = useState<CropArea | null>(null);
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [dragMode, setDragMode] = useState<DragMode>('none');
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; selection: CropArea | null } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current) return;
+  // 画像サイズを取得
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      setImageSize({ width: img.width, height: img.height });
+    };
+    img.src = imageData;
+  }, [imageData]);
 
+  // テンプレート適用
+  useEffect(() => {
+    if (!templateToApply || imageSize.width === 0 || imageSize.height === 0) return;
+
+    // 画像中央に配置
+    const newSelection = clampSelectionToImage(
+      {
+        x: (imageSize.width - templateToApply.width) / 2,
+        y: (imageSize.height - templateToApply.height) / 2,
+        width: templateToApply.width,
+        height: templateToApply.height,
+      },
+      imageSize.width,
+      imageSize.height
+    );
+
+    setSelection(newSelection);
+    onTemplateApplied?.();
+  }, [templateToApply, imageSize, onTemplateApplied]);
+
+  // 座標変換（クライアント座標 → 画像座標）
+  const clientToImage = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
+    if (!containerRef.current) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / zoom;
-    const y = (e.clientY - rect.top) / zoom;
-
-    setStartPoint({ x, y });
-    setSelection({ x, y, width: 0, height: 0 });
-    setIsSelecting(true);
+    return {
+      x: (clientX - rect.left) / zoom,
+      y: (clientY - rect.top) / zoom,
+    };
   }, [zoom]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isSelecting || !startPoint || !containerRef.current) return;
+  // ドラッグモードからカーソルを取得
+  const getCursor = (mode: DragMode): string => {
+    switch (mode) {
+      case 'move': return 'move';
+      case 'resize-nw': case 'resize-se': return 'nwse-resize';
+      case 'resize-ne': case 'resize-sw': return 'nesw-resize';
+      case 'resize-n': case 'resize-s': return 'ns-resize';
+      case 'resize-e': case 'resize-w': return 'ew-resize';
+      default: return 'crosshair';
+    }
+  };
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const currentX = (e.clientX - rect.left) / zoom;
-    const currentY = (e.clientY - rect.top) / zoom;
+  // マウスダウン
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
 
-    const x = Math.min(startPoint.x, currentX);
-    const y = Math.min(startPoint.y, currentY);
-    const width = Math.abs(currentX - startPoint.x);
-    const height = Math.abs(currentY - startPoint.y);
+    const pos = clientToImage(e.clientX, e.clientY);
 
-    setSelection({ x, y, width, height });
-  }, [isSelecting, startPoint, zoom]);
+    // 既存の選択範囲内かチェック
+    if (selection) {
+      const handle = getHandleAtPosition(pos, selection);
+      if (handle !== 'none') {
+        setDragMode(handle);
+        setDragStart({ x: pos.x, y: pos.y, selection: { ...selection } });
+        return;
+      }
+    }
 
-  const handleMouseUp = useCallback(() => {
-    setIsSelecting(false);
-    setStartPoint(null);
-  }, []);
+    // 新規選択開始
+    setDragMode('select');
+    setDragStart({ x: pos.x, y: pos.y, selection: null });
+    setSelection({ x: pos.x, y: pos.y, width: 0, height: 0 });
+  }, [selection, clientToImage]);
 
+  // ハンドル位置を判定
+  const getHandleAtPosition = (pos: { x: number; y: number }, sel: CropArea): DragMode => {
+    const handleHitSize = HANDLE_SIZE / zoom;
+    const { x, y, width, height } = sel;
+
+    // 4隅
+    if (Math.abs(pos.x - x) < handleHitSize && Math.abs(pos.y - y) < handleHitSize) return 'resize-nw';
+    if (Math.abs(pos.x - (x + width)) < handleHitSize && Math.abs(pos.y - y) < handleHitSize) return 'resize-ne';
+    if (Math.abs(pos.x - x) < handleHitSize && Math.abs(pos.y - (y + height)) < handleHitSize) return 'resize-sw';
+    if (Math.abs(pos.x - (x + width)) < handleHitSize && Math.abs(pos.y - (y + height)) < handleHitSize) return 'resize-se';
+
+    // 4辺中央
+    if (Math.abs(pos.x - (x + width / 2)) < handleHitSize && Math.abs(pos.y - y) < handleHitSize) return 'resize-n';
+    if (Math.abs(pos.x - (x + width / 2)) < handleHitSize && Math.abs(pos.y - (y + height)) < handleHitSize) return 'resize-s';
+    if (Math.abs(pos.x - x) < handleHitSize && Math.abs(pos.y - (y + height / 2)) < handleHitSize) return 'resize-w';
+    if (Math.abs(pos.x - (x + width)) < handleHitSize && Math.abs(pos.y - (y + height / 2)) < handleHitSize) return 'resize-e';
+
+    // 内部（移動）
+    if (pos.x >= x && pos.x <= x + width && pos.y >= y && pos.y <= y + height) return 'move';
+
+    return 'none';
+  };
+
+  // CROP-001: document監視でマウス移動
+  useEffect(() => {
+    if (dragMode === 'none') return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragStart) return;
+
+      const pos = clientToImage(e.clientX, e.clientY);
+      const { x: startX, y: startY, selection: startSel } = dragStart;
+      const dx = pos.x - startX;
+      const dy = pos.y - startY;
+
+      let newSelection: CropArea;
+
+      switch (dragMode) {
+        case 'select':
+          newSelection = {
+            x: Math.min(startX, pos.x),
+            y: Math.min(startY, pos.y),
+            width: Math.abs(pos.x - startX),
+            height: Math.abs(pos.y - startY),
+          };
+          break;
+
+        case 'move':
+          if (!startSel) return;
+          newSelection = {
+            ...startSel,
+            x: startSel.x + dx,
+            y: startSel.y + dy,
+          };
+          break;
+
+        case 'resize-nw':
+          if (!startSel) return;
+          newSelection = {
+            x: startSel.x + dx,
+            y: startSel.y + dy,
+            width: startSel.width - dx,
+            height: startSel.height - dy,
+          };
+          break;
+
+        case 'resize-ne':
+          if (!startSel) return;
+          newSelection = {
+            x: startSel.x,
+            y: startSel.y + dy,
+            width: startSel.width + dx,
+            height: startSel.height - dy,
+          };
+          break;
+
+        case 'resize-sw':
+          if (!startSel) return;
+          newSelection = {
+            x: startSel.x + dx,
+            y: startSel.y,
+            width: startSel.width - dx,
+            height: startSel.height + dy,
+          };
+          break;
+
+        case 'resize-se':
+          if (!startSel) return;
+          newSelection = {
+            x: startSel.x,
+            y: startSel.y,
+            width: startSel.width + dx,
+            height: startSel.height + dy,
+          };
+          break;
+
+        case 'resize-n':
+          if (!startSel) return;
+          newSelection = {
+            ...startSel,
+            y: startSel.y + dy,
+            height: startSel.height - dy,
+          };
+          break;
+
+        case 'resize-s':
+          if (!startSel) return;
+          newSelection = {
+            ...startSel,
+            height: startSel.height + dy,
+          };
+          break;
+
+        case 'resize-w':
+          if (!startSel) return;
+          newSelection = {
+            ...startSel,
+            x: startSel.x + dx,
+            width: startSel.width - dx,
+          };
+          break;
+
+        case 'resize-e':
+          if (!startSel) return;
+          newSelection = {
+            ...startSel,
+            width: startSel.width + dx,
+          };
+          break;
+
+        default:
+          return;
+      }
+
+      // 幅・高さが負にならないよう調整
+      if (newSelection.width < 0) {
+        newSelection.x += newSelection.width;
+        newSelection.width = Math.abs(newSelection.width);
+      }
+      if (newSelection.height < 0) {
+        newSelection.y += newSelection.height;
+        newSelection.height = Math.abs(newSelection.height);
+      }
+
+      // 画像境界にクランプ
+      if (imageSize.width > 0 && imageSize.height > 0) {
+        newSelection = clampSelectionToImage(newSelection, imageSize.width, imageSize.height);
+      }
+
+      setSelection(newSelection);
+    };
+
+    const handleMouseUp = () => {
+      setDragMode('none');
+      setDragStart(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragMode, dragStart, clientToImage, imageSize]);
+
+  // 切り出し確定
   const handleConfirm = useCallback(async () => {
     setErrorMessage(null);
     if (!selection || selection.width < 10 || selection.height < 10) {
@@ -68,7 +296,6 @@ export function CropTool({
       return;
     }
 
-    // 選択範囲を切り出してスニペットとして追加
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) {
@@ -89,11 +316,9 @@ export function CropTool({
       return;
     }
 
-    // キャンバスサイズを選択範囲に設定
     canvas.width = selection.width;
     canvas.height = selection.height;
 
-    // 選択範囲を描画
     ctx.drawImage(
       img,
       selection.x,
@@ -108,6 +333,14 @@ export function CropTool({
 
     const croppedImageData = canvas.toDataURL('image/png');
 
+    // テンプレートとして保存
+    saveTemplate(
+      templateScope,
+      { width: selection.width, height: selection.height, createdAt: Date.now() },
+      sourceFileId,
+      sourcePageNumber
+    );
+
     addSnippet({
       sourceFileId,
       sourcePageNumber,
@@ -116,21 +349,78 @@ export function CropTool({
     });
 
     setSelection(null);
-  }, [selection, imageData, sourceFileId, sourcePageNumber, addSnippet]);
+  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, addSnippet]);
 
   const handleCancel = useCallback(() => {
     setSelection(null);
-    setIsSelecting(false);
-    setStartPoint(null);
+    setDragMode('none');
+    setDragStart(null);
     setErrorMessage(null);
   }, []);
+
+  // CROP-005: ボタン位置をクランプして常に見える位置に
+  const getButtonPosition = useCallback(() => {
+    if (!selection || !containerRef.current) return { top: 8, right: 8 };
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const selRight = rect.left + (selection.x + selection.width) * zoom;
+    const selTop = rect.top + selection.y * zoom;
+
+    // ビューポート内にクランプ
+    const buttonHeight = 40;
+    const margin = 8;
+
+    let top = selTop - buttonHeight - margin;
+    let right = window.innerWidth - selRight;
+
+    // 上に出る場合は下に配置
+    if (top < margin) {
+      top = rect.top + (selection.y + selection.height) * zoom + margin;
+    }
+
+    // 右に出る場合は左に寄せる
+    if (right < margin) {
+      right = margin;
+    }
+
+    // 下に出る場合は画面内に収める
+    if (top + buttonHeight > window.innerHeight - margin) {
+      top = window.innerHeight - buttonHeight - margin;
+    }
+
+    return { top, right };
+  }, [selection, zoom]);
+
+  const buttonPos = getButtonPosition();
+  const isValidSelection = selection && selection.width > 10 && selection.height > 10;
+
+  // カーソル判定
+  const handleMouseMoveForCursor = useCallback((e: React.MouseEvent) => {
+    if (dragMode !== 'none') return;
+    if (!selection) return;
+
+    const pos = clientToImage(e.clientX, e.clientY);
+    const handle = getHandleAtPosition(pos, selection);
+    const cursor = getCursor(handle);
+
+    if (containerRef.current) {
+      containerRef.current.style.cursor = cursor;
+    }
+  }, [selection, dragMode, clientToImage]);
 
   return (
     <div className="relative">
       {/* 操作説明 */}
-      <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white text-sm px-2 py-1 rounded">
-        <Crop className="w-4 h-4 inline mr-1" />
-        ドラッグで範囲を選択
+      <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white text-sm px-2 py-1 rounded flex items-center gap-1">
+        <Crop className="w-4 h-4" />
+        ドラッグで範囲選択
+        {selection && (
+          <>
+            <span className="mx-1">|</span>
+            <Move className="w-4 h-4" />
+            範囲内で移動・角でリサイズ
+          </>
+        )}
       </div>
 
       {/* エラーメッセージ */}
@@ -141,11 +431,14 @@ export function CropTool({
         </div>
       )}
 
-      {/* 選択確定ボタン */}
-      {selection && selection.width > 10 && selection.height > 10 && !isSelecting && (
-        <div className="absolute top-2 right-2 z-10 flex gap-1">
+      {/* 選択確定ボタン（position: fixed でビューポート基準） */}
+      {isValidSelection && dragMode === 'none' && (
+        <div
+          className="fixed z-50 flex gap-1"
+          style={{ top: buttonPos.top, right: buttonPos.right }}
+        >
           <button
-            className="flex items-center gap-1 px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+            className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded shadow-lg hover:bg-green-600"
             onClick={handleConfirm}
             aria-label="選択範囲を切り出し"
           >
@@ -153,7 +446,7 @@ export function CropTool({
             切り出し
           </button>
           <button
-            className="flex items-center gap-1 px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+            className="flex items-center gap-1 px-2 py-2 bg-gray-500 text-white rounded shadow-lg hover:bg-gray-600"
             onClick={handleCancel}
             aria-label="選択をキャンセル"
           >
@@ -165,14 +458,17 @@ export function CropTool({
       {/* 画像コンテナ */}
       <div
         ref={containerRef}
-        className="relative cursor-crosshair select-none"
-        style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+        className="relative select-none"
+        style={{
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top left',
+          cursor: getCursor(dragMode !== 'none' ? dragMode : 'select'),
+        }}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onMouseMove={handleMouseMoveForCursor}
       >
         <img
+          ref={imageRef}
           src={imageData}
           alt="PDF Page"
           className="max-w-none"
@@ -181,20 +477,40 @@ export function CropTool({
 
         {/* 選択範囲表示 */}
         {selection && (
-          <div
-            className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30 pointer-events-none"
-            style={{
-              left: selection.x,
-              top: selection.y,
-              width: selection.width,
-              height: selection.height,
-            }}
-          >
-            {/* サイズ表示 */}
-            <div className="absolute -bottom-6 left-0 bg-blue-500 text-white text-xs px-1 py-0.5 rounded">
-              {Math.round(selection.width)} x {Math.round(selection.height)}
+          <>
+            {/* 選択枠 */}
+            <div
+              className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30"
+              style={{
+                left: selection.x,
+                top: selection.y,
+                width: selection.width,
+                height: selection.height,
+                pointerEvents: dragMode === 'none' ? 'auto' : 'none',
+              }}
+            >
+              {/* サイズ表示 */}
+              <div className="absolute -bottom-6 left-0 bg-blue-500 text-white text-xs px-1 py-0.5 rounded whitespace-nowrap">
+                {Math.round(selection.width)} x {Math.round(selection.height)}
+              </div>
             </div>
-          </div>
+
+            {/* リサイズハンドル（8つ） */}
+            {dragMode === 'none' && (
+              <>
+                {/* 4隅 */}
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-nwse-resize" style={{ left: selection.x - 6, top: selection.y - 6 }} />
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-nesw-resize" style={{ left: selection.x + selection.width - 6, top: selection.y - 6 }} />
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-nesw-resize" style={{ left: selection.x - 6, top: selection.y + selection.height - 6 }} />
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-nwse-resize" style={{ left: selection.x + selection.width - 6, top: selection.y + selection.height - 6 }} />
+                {/* 4辺中央 */}
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-ns-resize" style={{ left: selection.x + selection.width / 2 - 6, top: selection.y - 6 }} />
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-ns-resize" style={{ left: selection.x + selection.width / 2 - 6, top: selection.y + selection.height - 6 }} />
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-ew-resize" style={{ left: selection.x - 6, top: selection.y + selection.height / 2 - 6 }} />
+                <div className="absolute w-3 h-3 bg-white border-2 border-blue-500 cursor-ew-resize" style={{ left: selection.x + selection.width - 6, top: selection.y + selection.height / 2 - 6 }} />
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

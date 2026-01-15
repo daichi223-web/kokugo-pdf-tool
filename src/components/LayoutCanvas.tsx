@@ -29,6 +29,7 @@ export function LayoutCanvas({
 }: LayoutCanvasProps) {
   const {
     updateSnippetPosition,
+    updateSnippetSize,
     removeSnippetFromLayout,
     selectedSnippetId,
     setSelectedSnippet,
@@ -38,7 +39,7 @@ export function LayoutCanvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
-  const [_resizing, setResizing] = useState<string | null>(null); // TODO: リサイズ機能実装予定
+  const [resizing, setResizing] = useState<{ snippetId: string; handle: string; startSize: { width: number; height: number }; startPos: Position } | null>(null);
 
   const paperSize = PAPER_SIZES[layoutPage.paperSize];
   const margin = 15; // 15mm余白
@@ -79,20 +80,68 @@ export function LayoutCanvas({
     [layoutPage.snippets, zoom, setSelectedSnippet]
   );
 
-  // ドラッグ中
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!dragging || !canvasRef.current) return;
+  // リサイズ開始
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent, snippetId: string, handle: string) => {
+      e.stopPropagation();
+      const placed = layoutPage.snippets.find((s) => s.snippetId === snippetId);
+      if (!placed || !canvasRef.current) return;
 
       const rect = canvasRef.current.getBoundingClientRect();
-      const newPos = snapPosition({
-        x: (e.clientX - rect.left) / zoom - dragOffset.x,
-        y: (e.clientY - rect.top) / zoom - dragOffset.y,
+      setResizing({
+        snippetId,
+        handle,
+        startSize: { ...placed.size },
+        startPos: {
+          x: (e.clientX - rect.left) / zoom,
+          y: (e.clientY - rect.top) / zoom,
+        },
       });
-
-      updateSnippetPosition(layoutPage.id, dragging, newPos);
+      setSelectedSnippet(snippetId);
     },
-    [dragging, dragOffset, zoom, snapPosition, layoutPage.id, updateSnippetPosition]
+    [layoutPage.snippets, zoom, setSelectedSnippet]
+  );
+
+  // ドラッグ中 / リサイズ中
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+
+      // リサイズ処理
+      if (resizing) {
+        const currentX = (e.clientX - rect.left) / zoom;
+        const currentY = (e.clientY - rect.top) / zoom;
+        const dx = currentX - resizing.startPos.x;
+        const dy = currentY - resizing.startPos.y;
+
+        let newWidth = resizing.startSize.width;
+        let newHeight = resizing.startSize.height;
+
+        // ハンドルに応じてサイズ変更
+        if (resizing.handle.includes('e')) newWidth = Math.max(20, resizing.startSize.width + dx);
+        if (resizing.handle.includes('w')) newWidth = Math.max(20, resizing.startSize.width - dx);
+        if (resizing.handle.includes('s')) newHeight = Math.max(20, resizing.startSize.height + dy);
+        if (resizing.handle.includes('n')) newHeight = Math.max(20, resizing.startSize.height - dy);
+
+        const snappedSize = snapPosition({ x: newWidth, y: newHeight });
+        updateSnippetSize(layoutPage.id, resizing.snippetId, {
+          width: snappedSize.x,
+          height: snappedSize.y,
+        });
+        return;
+      }
+
+      // ドラッグ処理
+      if (dragging) {
+        const newPos = snapPosition({
+          x: (e.clientX - rect.left) / zoom - dragOffset.x,
+          y: (e.clientY - rect.top) / zoom - dragOffset.y,
+        });
+        updateSnippetPosition(layoutPage.id, dragging, newPos);
+      }
+    },
+    [dragging, dragOffset, resizing, zoom, snapPosition, layoutPage.id, updateSnippetPosition, updateSnippetSize]
   );
 
   // ドラッグ終了
@@ -181,18 +230,22 @@ export function LayoutCanvas({
               draggable={false}
             />
 
-            {/* リサイズハンドル */}
+            {/* リサイズハンドル（8つ） */}
             {isSelected && (
               <>
-                <div
-                  className="snippet-handle -right-1.5 -bottom-1.5 cursor-se-resize"
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setResizing(placed.snippetId);
-                  }}
-                />
+                {/* 4隅 */}
+                <div className="snippet-handle -left-1.5 -top-1.5 cursor-nwse-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'nw')} />
+                <div className="snippet-handle -right-1.5 -top-1.5 cursor-nesw-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'ne')} />
+                <div className="snippet-handle -left-1.5 -bottom-1.5 cursor-nesw-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'sw')} />
+                <div className="snippet-handle -right-1.5 -bottom-1.5 cursor-nwse-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'se')} />
+                {/* 4辺中央 */}
+                <div className="snippet-handle left-1/2 -translate-x-1/2 -top-1.5 cursor-ns-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'n')} />
+                <div className="snippet-handle left-1/2 -translate-x-1/2 -bottom-1.5 cursor-ns-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 's')} />
+                <div className="snippet-handle -left-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'w')} />
+                <div className="snippet-handle -right-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize" onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'e')} />
+                {/* 削除ボタン */}
                 <button
-                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600"
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 z-10"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeSnippetFromLayout(layoutPage.id, placed.snippetId);

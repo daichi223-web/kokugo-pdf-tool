@@ -7,7 +7,7 @@
 // P3-006: 印刷用PDF出力
 // =============================================================================
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Plus,
   Download,
@@ -15,12 +15,20 @@ import {
   Trash2,
   ZoomIn,
   ZoomOut,
+  History,
+  RotateCcw,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { SnippetList } from './SnippetList';
 import { LayoutCanvas } from './LayoutCanvas';
 import { CropTool } from './CropTool';
 import { PAPER_SIZES, type PaperSize } from '../types';
+import {
+  type TemplateScope,
+  type CropTemplate,
+  getLatestTemplateAny,
+  getTemplates,
+} from '../utils/cropTemplateUtils';
 
 export function LayoutView() {
   const {
@@ -40,6 +48,9 @@ export function LayoutView() {
   const [zoom, setZoom] = useState(1);
   const [mode, setMode] = useState<'crop' | 'layout'>('crop');
   const [newPageSize, setNewPageSize] = useState<PaperSize>('A4');
+  const [templateScope, setTemplateScope] = useState<TemplateScope>('global');
+  const [showTemplateHistory, setShowTemplateHistory] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<CropTemplate | null>(null);
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
@@ -51,6 +62,36 @@ export function LayoutView() {
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3));
   const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.25));
+
+  // テンプレート関連
+  const handleApplyLastTemplate = useCallback(() => {
+    if (!activeFileId) return;
+    const result = getLatestTemplateAny(activeFileId, activePageNumber);
+    if (result) {
+      setPendingTemplate(result.template);
+    }
+  }, [activeFileId, activePageNumber]);
+
+  const handleApplyTemplate = useCallback((template: CropTemplate) => {
+    setPendingTemplate(template);
+    setShowTemplateHistory(false);
+  }, []);
+
+  // 現在のスコープに基づくテンプレート履歴取得
+  const getTemplateHistory = useCallback((): CropTemplate[] => {
+    if (!activeFileId) return [];
+    switch (templateScope) {
+      case 'page':
+        return getTemplates('page', activeFileId, activePageNumber);
+      case 'file':
+        return getTemplates('file', activeFileId);
+      case 'global':
+      default:
+        return getTemplates('global');
+    }
+  }, [templateScope, activeFileId, activePageNumber]);
+
+  const templateHistory = getTemplateHistory();
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -77,6 +118,64 @@ export function LayoutView() {
         </div>
 
         <div className="w-px h-6 bg-gray-200" />
+
+        {/* CROP-006: テンプレート管理（トリミングモード時のみ） */}
+        {mode === 'crop' && (
+          <>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">テンプレ:</span>
+              <select
+                className="border rounded px-1 py-0.5 text-xs"
+                value={templateScope}
+                onChange={(e) => setTemplateScope(e.target.value as TemplateScope)}
+              >
+                <option value="global">全体</option>
+                <option value="file">ファイル</option>
+                <option value="page">ページ</option>
+              </select>
+            </div>
+
+            <button
+              className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
+              onClick={handleApplyLastTemplate}
+              title="前回のテンプレートを適用"
+            >
+              <RotateCcw className="w-3 h-3" />
+              前回適用
+            </button>
+
+            <div className="relative">
+              <button
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                onClick={() => setShowTemplateHistory(!showTemplateHistory)}
+                title="テンプレート履歴"
+              >
+                <History className="w-3 h-3" />
+                履歴
+              </button>
+              {showTemplateHistory && templateHistory.length > 0 && (
+                <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20 min-w-[150px]">
+                  {templateHistory.map((t, i) => (
+                    <button
+                      key={i}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100 border-b last:border-b-0"
+                      onClick={() => handleApplyTemplate(t)}
+                    >
+                      {Math.round(t.width)} × {Math.round(t.height)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showTemplateHistory && templateHistory.length === 0 && (
+                <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20 p-2 text-xs text-gray-500">
+                  履歴なし
+                </div>
+              )}
+            </div>
+
+            <div className="w-px h-6 bg-gray-200" />
+          </>
+        )}
 
         {/* P3-004: 用紙サイズ選択 */}
         {mode === 'layout' && (
@@ -163,6 +262,9 @@ export function LayoutView() {
                 sourceFileId={activeFileId || ''}
                 sourcePageNumber={activePageNumber}
                 zoom={zoom}
+                templateScope={templateScope}
+                templateToApply={pendingTemplate}
+                onTemplateApplied={() => setPendingTemplate(null)}
               />
             ) : (
               <div className="h-full flex items-center justify-center text-gray-500">
