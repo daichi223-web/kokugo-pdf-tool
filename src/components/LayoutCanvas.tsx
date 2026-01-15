@@ -46,6 +46,7 @@ export function LayoutCanvas({
     startPos: Position;
     startPosition: Position;
   } | null>(null);
+  const [justDropped, setJustDropped] = useState(false); // ドロップ直後フラグ
 
   const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
   const margin = 15; // 15mm余白
@@ -70,6 +71,13 @@ export function LayoutCanvas({
   const handleDragStart = useCallback(
     (e: React.MouseEvent, snippetId: string) => {
       e.stopPropagation();
+
+      // 左クリック以外は無視
+      if (e.button !== 0) return;
+
+      // ドロップ直後は内部ドラッグを開始しない
+      if (justDropped) return;
+
       const placed = layoutPage.snippets.find((s) => s.snippetId === snippetId);
       if (!placed) return;
 
@@ -83,7 +91,7 @@ export function LayoutCanvas({
         y: (e.clientY - rect.top) / zoom - placed.position.y,
       });
     },
-    [layoutPage.snippets, zoom, setSelectedSnippet]
+    [layoutPage.snippets, zoom, setSelectedSnippet, justDropped]
   );
 
   // リサイズ開始
@@ -229,12 +237,20 @@ export function LayoutCanvas({
       setResizing(null);
     };
 
+    // HTML5 Drag終了時もドラッグ状態をリセット
+    const handleDragEnd = () => {
+      setDragging(null);
+      setResizing(null);
+    };
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('dragend', handleDragEnd);
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('dragend', handleDragEnd);
     };
   }, [
     dragging,
@@ -261,6 +277,10 @@ export function LayoutCanvas({
         x: (e.clientX - rect.left) / zoom - marginPx,
         y: (e.clientY - rect.top) / zoom - marginPx,
       });
+
+      // ドロップ直後フラグを設定（内部ドラッグの誤発火を防ぐ）
+      setJustDropped(true);
+      setTimeout(() => setJustDropped(false), 150);
 
       addSnippetToLayout(layoutPage.id, snippetId, position);
     },
