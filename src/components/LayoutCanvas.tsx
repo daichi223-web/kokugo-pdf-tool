@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
-import { mmToPx } from '../utils/helpers';
+import { mmToPx, pxToMm } from '../utils/helpers';
 import type { LayoutPage, Snippet, Position } from '../types';
 import { getPaperDimensions } from '../types';
 
@@ -320,6 +320,78 @@ export function LayoutCanvas({
         }}
       />
 
+      {/* 1/2と1/3のガイドライン */}
+      {showGrid && (
+        <>
+          {/* 縦方向 1/2 ライン */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: (canvasWidth / 2) * zoom,
+              top: 0,
+              width: 2,
+              height: canvasHeight * zoom,
+              backgroundColor: 'rgba(59, 130, 246, 0.5)',
+            }}
+          />
+          {/* 縦方向 1/3 ライン */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: (canvasWidth / 3) * zoom,
+              top: 0,
+              width: 2,
+              height: canvasHeight * zoom,
+              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+            }}
+          />
+          {/* 縦方向 2/3 ライン */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: (canvasWidth * 2 / 3) * zoom,
+              top: 0,
+              width: 2,
+              height: canvasHeight * zoom,
+              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+            }}
+          />
+          {/* 横方向 1/2 ライン */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: 0,
+              top: (canvasHeight / 2) * zoom,
+              width: canvasWidth * zoom,
+              height: 2,
+              backgroundColor: 'rgba(59, 130, 246, 0.5)',
+            }}
+          />
+          {/* 横方向 1/3 ライン */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: 0,
+              top: (canvasHeight / 3) * zoom,
+              width: canvasWidth * zoom,
+              height: 2,
+              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+            }}
+          />
+          {/* 横方向 2/3 ライン */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: 0,
+              top: (canvasHeight * 2 / 3) * zoom,
+              width: canvasWidth * zoom,
+              height: 2,
+              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+            }}
+          />
+        </>
+      )}
+
       {/* 配置されたスニペット */}
       {layoutPage.snippets.map((placed) => {
         const snippet = snippets.find((s) => s.id === placed.snippetId);
@@ -374,9 +446,9 @@ export function LayoutCanvas({
                 >
                   ×
                 </button>
-                {/* サイズ表示 */}
+                {/* サイズ表示（mm単位） */}
                 <div className="absolute -bottom-6 left-0 bg-blue-600 text-white text-xs px-2 py-0.5 rounded whitespace-nowrap" style={{ zIndex: 25 }}>
-                  {Math.round(placed.size.width)} × {Math.round(placed.size.height)}
+                  {Math.round(pxToMm(placed.size.width, 96))}mm × {Math.round(pxToMm(placed.size.height, 96))}mm
                 </div>
               </>
             )}

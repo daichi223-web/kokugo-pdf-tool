@@ -447,6 +447,12 @@ export const useAppStore = create<Store>()(
       },
 
       addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => {
+        const snippet = get().snippets.find((s) => s.id === snippetId);
+        // トリミングサイズを初期サイズとして使用
+        const initialSize = snippet
+          ? { width: snippet.cropArea.width, height: snippet.cropArea.height }
+          : { width: 100, height: 100 };
+
         set((state) => ({
           layoutPages: state.layoutPages.map((page) =>
             page.id === pageId
@@ -457,7 +463,7 @@ export const useAppStore = create<Store>()(
                     {
                       snippetId,
                       position,
-                      size: { width: 100, height: 100 },
+                      size: initialSize,
                       rotation: 0,
                     },
                   ],
