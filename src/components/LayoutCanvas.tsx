@@ -41,6 +41,8 @@ export function LayoutCanvas({
     clearPlacedSnippetSelection,
     updateTextElement,
     removeTextElement,
+    selectedTextId,
+    setSelectedTextId,
   } = useAppStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -56,7 +58,6 @@ export function LayoutCanvas({
   const [justDropped, setJustDropped] = useState(false); // ドロップ直後フラグ
 
   // テキスト要素用の状態
-  const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [draggingText, setDraggingText] = useState<string | null>(null);
   const [textDragOffset, setTextDragOffset] = useState<Position>({ x: 0, y: 0 });
@@ -592,7 +593,7 @@ export function LayoutCanvas({
         return (
           <div
             key={textElement.id}
-            className={`absolute border-2 ${isSelected ? 'border-green-500' : 'border-transparent hover:border-green-300'} cursor-move`}
+            className={`absolute border-2 ${isSelected ? 'border-green-500' : 'border-transparent'} cursor-move`}
             style={{
               left: (marginPx + textElement.position.x) * zoom,
               top: (marginPx + textElement.position.y) * zoom,
@@ -730,49 +731,6 @@ export function LayoutCanvas({
                 >
                   ×
                 </button>
-                {/* フォントサイズ調整 */}
-                <div className="absolute -bottom-8 left-0 flex items-center gap-1 bg-green-600 text-white text-xs px-2 py-1 rounded" style={{ zIndex: 25 }}>
-                  <button
-                    className="hover:bg-green-700 px-1 rounded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateTextElement(layoutPage.id, textElement.id, { fontSize: Math.max(8, textElement.fontSize - 2) });
-                    }}
-                  >
-                    -
-                  </button>
-                  <span>{textElement.fontSize}px</span>
-                  <button
-                    className="hover:bg-green-700 px-1 rounded"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateTextElement(layoutPage.id, textElement.id, { fontSize: textElement.fontSize + 2 });
-                    }}
-                  >
-                    +
-                  </button>
-                  <span className="mx-1">|</span>
-                  <button
-                    className={`px-1 rounded ${textElement.writingMode === 'vertical' ? 'bg-green-800' : 'hover:bg-green-700'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateTextElement(layoutPage.id, textElement.id, { writingMode: 'vertical' });
-                    }}
-                    title="縦書き"
-                  >
-                    縦
-                  </button>
-                  <button
-                    className={`px-1 rounded ${textElement.writingMode === 'horizontal' ? 'bg-green-800' : 'hover:bg-green-700'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateTextElement(layoutPage.id, textElement.id, { writingMode: 'horizontal' });
-                    }}
-                    title="横書き"
-                  >
-                    横
-                  </button>
-                </div>
               </>
             )}
           </div>

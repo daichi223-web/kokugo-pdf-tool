@@ -61,6 +61,8 @@ export function LayoutView() {
     alignSnippets,
     unifySnippetSize,
     addTextElement,
+    updateTextElement,
+    selectedTextId,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -91,6 +93,9 @@ export function LayoutView() {
   const reCropSnippet = snippets.find((s) => s.id === reCropSnippetId);
   const selectedPlacedSnippet = activeLayout?.snippets.find(
     (snippet) => snippet.snippetId === selectedSnippetId
+  );
+  const selectedTextElement = activeLayout?.textElements?.find(
+    (t) => t.id === selectedTextId
   );
 
   // 用紙を画面内に収めるための自動ズーム計算（レイアウトモード）
@@ -450,6 +455,44 @@ export function LayoutView() {
             >
               サイズ一括適用
             </button>
+          </>
+        )}
+
+        {/* テキスト要素選択時のコントロール */}
+        {mode === 'layout' && activeLayout && selectedTextElement && (
+          <>
+            <div className="w-px h-6 bg-gray-200" />
+            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+              テキスト選択中
+            </span>
+            <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded border border-green-200">
+              <button
+                className="px-2 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
+                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { fontSize: Math.max(8, selectedTextElement.fontSize - 2) })}
+              >
+                -
+              </button>
+              <span className="text-sm font-medium min-w-[50px] text-center">{selectedTextElement.fontSize}px</span>
+              <button
+                className="px-2 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
+                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { fontSize: selectedTextElement.fontSize + 2 })}
+              >
+                +
+              </button>
+              <div className="w-px h-5 bg-green-300 mx-1" />
+              <button
+                className={`px-2 py-1 text-sm rounded ${selectedTextElement.writingMode === 'vertical' ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}
+                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { writingMode: 'vertical' })}
+              >
+                縦
+              </button>
+              <button
+                className={`px-2 py-1 text-sm rounded ${selectedTextElement.writingMode === 'horizontal' ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}
+                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { writingMode: 'horizontal' })}
+              >
+                横
+              </button>
+            </div>
           </>
         )}
 

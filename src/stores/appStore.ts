@@ -80,6 +80,7 @@ export const useAppStore = create<Store>()(
       selectedSnippetId: null,
       selectedSnippetIds: [],
       selectedPageNumbers: [],
+      selectedTextId: null,
       benchmarkResult: null,
       isBenchmarkMode: false,
       layoutHistory: [],
@@ -630,6 +631,10 @@ export const useAppStore = create<Store>()(
 
       setSelectedSnippet: (snippetId) => {
         set({ selectedSnippetId: snippetId });
+      },
+
+      setSelectedTextId: (textId) => {
+        set({ selectedTextId: textId });
       },
 
       // P1-009: プログレス表示

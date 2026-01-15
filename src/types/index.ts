@@ -184,6 +184,7 @@ export interface AppState {
   selectedSnippetId: string | null;
   selectedSnippetIds: string[];  // 配置済みスニペットの複数選択用
   selectedPageNumbers: number[];  // 複数ページ選択用
+  selectedTextId: string | null;  // 選択中のテキスト要素
 }
 
 // アクション型
@@ -225,6 +226,7 @@ export interface AppActions {
   // UI操作
   setActiveTab: (tab: 'extract' | 'layout') => void;
   setSelectedSnippet: (snippetId: string | null) => void;
+  setSelectedTextId: (textId: string | null) => void;
   setProgress: (progress: ProgressInfo | null) => void;
 
   // ページ複数選択操作
