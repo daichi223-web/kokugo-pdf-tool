@@ -64,8 +64,13 @@ export function LayoutView() {
     unifySnippetSize,
   } = useAppStore();
 
-  const [zoom, setZoom] = useState(1);
+  const [layoutZoom, setLayoutZoom] = useState(1);
+  const [cropZoom, setCropZoom] = useState(1);
   const [mode, setMode] = useState<'crop' | 'layout'>('crop');
+
+  // 現在のモードに応じたズーム値
+  const zoom = mode === 'layout' ? layoutZoom : cropZoom;
+  const setZoom = mode === 'layout' ? setLayoutZoom : setCropZoom;
   const [newPageSize, setNewPageSize] = useState<PaperSize>(
     settings.defaultPaperSize ?? 'A4'
   );
@@ -79,6 +84,7 @@ export function LayoutView() {
   const [isExporting, setIsExporting] = useState(false);
 
   const layoutContainerRef = useRef<HTMLDivElement>(null);
+  const [cropImageSize, setCropImageSize] = useState<{ width: number; height: number } | null>(null);
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
@@ -88,8 +94,8 @@ export function LayoutView() {
     (snippet) => snippet.snippetId === selectedSnippetId
   );
 
-  // 用紙を画面内に収めるための自動ズーム計算
-  const calculateFitZoom = useCallback(() => {
+  // 用紙を画面内に収めるための自動ズーム計算（レイアウトモード）
+  const calculateLayoutFitZoom = useCallback(() => {
     if (!layoutContainerRef.current || !activeLayout) return;
 
     const container = layoutContainerRef.current;
@@ -104,27 +110,66 @@ export function LayoutView() {
     const scaleY = containerHeight / paperHeight;
     const fitZoom = Math.min(scaleX, scaleY, 1); // 最大100%まで
 
-    setZoom(Math.max(0.25, Math.floor(fitZoom * 20) / 20)); // 5%刻みで切り捨て
+    setLayoutZoom(Math.max(0.25, Math.floor(fitZoom * 20) / 20)); // 5%刻みで切り捨て
   }, [activeLayout]);
+
+  // 画像を画面内に収めるための自動ズーム計算（トリミングモード）
+  const calculateCropFitZoom = useCallback(() => {
+    if (!layoutContainerRef.current || !cropImageSize) return;
+
+    const container = layoutContainerRef.current;
+    const containerWidth = container.clientWidth - 32;
+    const containerHeight = container.clientHeight - 80;
+
+    const scaleX = containerWidth / cropImageSize.width;
+    const scaleY = containerHeight / cropImageSize.height;
+    const fitZoom = Math.min(scaleX, scaleY, 1);
+
+    setCropZoom(Math.max(0.25, Math.floor(fitZoom * 20) / 20));
+  }, [cropImageSize]);
 
   // レイアウトページ変更時に自動フィット
   useEffect(() => {
     if (mode === 'layout' && activeLayout) {
-      calculateFitZoom();
+      calculateLayoutFitZoom();
     }
-  }, [mode, activeLayout?.id, activeLayout?.paperSize, activeLayout?.orientation, calculateFitZoom]);
+  }, [mode, activeLayout?.id, activeLayout?.paperSize, activeLayout?.orientation, calculateLayoutFitZoom]);
+
+  // トリミング画像の読み込みとサイズ取得
+  useEffect(() => {
+    const imageData = reCropSnippet?.imageData || activePage?.imageData;
+    if (!imageData) {
+      setCropImageSize(null);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      setCropImageSize({ width: img.width, height: img.height });
+    };
+    img.src = imageData;
+  }, [activePage?.imageData, reCropSnippet?.imageData]);
+
+  // トリミング画像サイズ変更時に自動フィット
+  useEffect(() => {
+    if (mode === 'crop' && cropImageSize) {
+      calculateCropFitZoom();
+    }
+  }, [mode, cropImageSize, calculateCropFitZoom]);
 
   // ウィンドウリサイズ時に再計算
   useEffect(() => {
-    if (mode !== 'layout') return;
-
     const handleResize = () => {
-      calculateFitZoom();
+      if (mode === 'layout') {
+        calculateLayoutFitZoom();
+      } else if (mode === 'crop') {
+        calculateCropFitZoom();
+      }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [mode, calculateFitZoom]);
+  }, [mode, calculateLayoutFitZoom, calculateCropFitZoom]);
 
   const handleAddPage = () => {
     addLayoutPage(newPageSize, newPageOrientation);
@@ -504,15 +549,13 @@ export function LayoutView() {
         <button className="toolbar-button" onClick={handleZoomIn} aria-label="拡大">
           <ZoomIn className="w-5 h-5" />
         </button>
-        {mode === 'layout' && (
-          <button
-            className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
-            onClick={calculateFitZoom}
-            title="画面に収める"
-          >
-            フィット
-          </button>
-        )}
+        <button
+          className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+          onClick={mode === 'layout' ? calculateLayoutFitZoom : calculateCropFitZoom}
+          title="画面に収める"
+        >
+          フィット
+        </button>
 
         <div className="flex-1" />
 
