@@ -72,6 +72,26 @@ export function SnippetList() {
 
   const GAP_STEP = 10; // 間隔調整のステップ（px）
 
+  // 間隔変更時に自動で再配置
+  const handleGapChange = (newGapX: number, newGapY: number) => {
+    setGapX(newGapX);
+    setGapY(newGapY);
+
+    if (!activeLayoutPageId || snippets.length === 0) return;
+
+    let cols: number, rows: number;
+    if (gridPattern === 'auto') {
+      const auto = getAutoGrid(snippets.length);
+      cols = auto.cols;
+      rows = auto.rows;
+    } else {
+      cols = GRID_PATTERNS[gridPattern].cols;
+      rows = GRID_PATTERNS[gridPattern].rows;
+    }
+
+    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, newGapX, newGapY);
+  };
+
   return (
     <div className="w-48 bg-white rounded-lg shadow overflow-hidden flex flex-col">
       <div className="px-3 py-2 bg-gray-50 border-b font-medium text-sm">
@@ -171,16 +191,18 @@ export function SnippetList() {
             <div className="flex items-center gap-1">
               {/* 横間隔 */}
               <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => setGapX(Math.max(0, gapX - GAP_STEP))}
+                className="p-0.5 border rounded hover:bg-gray-100 disabled:opacity-50"
+                onClick={() => handleGapChange(Math.max(0, gapX - GAP_STEP), gapY)}
+                disabled={!activeLayoutPageId}
                 title="横間隔を狭める"
               >
                 <ChevronLeft className="w-3 h-3" />
               </button>
               <span className="w-6 text-center">{gapX}</span>
               <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => setGapX(gapX + GAP_STEP)}
+                className="p-0.5 border rounded hover:bg-gray-100 disabled:opacity-50"
+                onClick={() => handleGapChange(gapX + GAP_STEP, gapY)}
+                disabled={!activeLayoutPageId}
                 title="横間隔を広げる"
               >
                 <ChevronRight className="w-3 h-3" />
@@ -190,16 +212,18 @@ export function SnippetList() {
 
               {/* 縦間隔 */}
               <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => setGapY(Math.max(0, gapY - GAP_STEP))}
+                className="p-0.5 border rounded hover:bg-gray-100 disabled:opacity-50"
+                onClick={() => handleGapChange(gapX, Math.max(0, gapY - GAP_STEP))}
+                disabled={!activeLayoutPageId}
                 title="縦間隔を狭める"
               >
                 <ChevronUp className="w-3 h-3" />
               </button>
               <span className="w-6 text-center">{gapY}</span>
               <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => setGapY(gapY + GAP_STEP)}
+                className="p-0.5 border rounded hover:bg-gray-100 disabled:opacity-50"
+                onClick={() => handleGapChange(gapX, gapY + GAP_STEP)}
+                disabled={!activeLayoutPageId}
                 title="縦間隔を広げる"
               >
                 <ChevronDown className="w-3 h-3" />

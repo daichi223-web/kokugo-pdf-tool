@@ -823,31 +823,25 @@ export const useAppStore = create<Store>()(
         const availableWidth = pageWidth - margin * 2 - totalGapX;
         const availableHeight = pageHeight - margin * 2 - totalGapY;
 
-        // セルサイズ
+        // 統一セルサイズ（全スニペット同じサイズにする）
         const cellWidth = availableWidth / cols;
         const cellHeight = availableHeight / rows;
 
         // 全スニペットをリスト順（作成順）で配置（右から左へ）
+        // 全スニペットを同じサイズにしてぴったりくっつける
         const newPlacedSnippets = snippets.map((snippet, index) => {
           const col = cols - 1 - (index % cols); // 右から左へ
           const row = Math.floor(index / cols);
 
-          // セルに収まるようにサイズを調整
-          const snippetWidth = snippet.cropArea.width;
-          const snippetHeight = snippet.cropArea.height;
-          const scale = Math.min(cellWidth / snippetWidth, cellHeight / snippetHeight, 1);
-          const newWidth = snippetWidth * scale;
-          const newHeight = snippetHeight * scale;
-
           return {
             snippetId: snippet.id,
             position: {
-              x: col * (cellWidth + gapX) + (cellWidth - newWidth) / 2,
-              y: row * (cellHeight + gapY) + (cellHeight - newHeight) / 2,
+              x: col * (cellWidth + gapX),
+              y: row * (cellHeight + gapY),
             },
             size: {
-              width: newWidth,
-              height: newHeight,
+              width: cellWidth,
+              height: cellHeight,
             },
             rotation: 0,
           };
