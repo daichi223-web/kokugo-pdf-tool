@@ -825,9 +825,9 @@ export const useAppStore = create<Store>()(
         const cellWidth = availableWidth / cols;
         const cellHeight = availableHeight / rows;
 
-        // 全スニペットをリスト順（作成順）で配置
+        // 全スニペットをリスト順（作成順）で配置（右から左へ）
         const newPlacedSnippets = snippets.map((snippet, index) => {
-          const col = index % cols;
+          const col = cols - 1 - (index % cols); // 右から左へ
           const row = Math.floor(index / cols);
 
           // セルに収まるようにサイズを調整
