@@ -21,6 +21,7 @@ import {
   AlignStartVertical,
   AlignStartHorizontal,
   Equal,
+  Type,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { SnippetList } from './SnippetList';
@@ -59,6 +60,7 @@ export function LayoutView() {
     selectedSnippetIds,
     alignSnippets,
     unifySnippetSize,
+    addTextElement,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -396,6 +398,20 @@ export function LayoutView() {
               新規ページ
             </button>
 
+            <button
+              className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+              onClick={() => {
+                if (activeLayoutPageId) {
+                  addTextElement(activeLayoutPageId, { x: 50, y: 50 });
+                }
+              }}
+              disabled={!activeLayoutPageId}
+              title="縦書きテキストを追加"
+            >
+              <Type className="w-4 h-4" />
+              テキスト
+            </button>
+
             <div className="w-px h-6 bg-gray-200" />
           </>
         )}
@@ -619,7 +635,7 @@ export function LayoutView() {
             )
           ) : (
             // P3-002: 再配置エディタ
-            <div className="space-y-4">
+            <div className="w-full space-y-4 flex flex-col items-center">
               {/* レイアウトページタブ */}
               {layoutPages.length > 0 && (
                 <div className="flex gap-2 flex-wrap">

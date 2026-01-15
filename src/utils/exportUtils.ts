@@ -11,7 +11,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { PDFDocument } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import type { LayoutPage, Snippet } from '../types';
+import type { LayoutPage, Snippet, TextElement } from '../types';
 import { getPaperDimensions } from '../types';
 import { applyRubyBrackets } from './ocrUtils';
 import { mmToPx } from './helpers';
@@ -182,6 +182,67 @@ export async function exportToPDF(
 
 
 /**
+ * テキスト要素をCanvas画像として描画
+ * 縦書き・横書きに対応
+ */
+async function renderTextElementToImage(textElement: TextElement): Promise<string | null> {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  // 高解像度で描画（2倍）
+  const scale = 2;
+  canvas.width = textElement.size.width * scale;
+  canvas.height = textElement.size.height * scale;
+
+  // 背景を透明に
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // フォント設定
+  ctx.font = `${textElement.fontSize * scale}px ${textElement.fontFamily}`;
+  ctx.fillStyle = textElement.color;
+  ctx.textBaseline = 'top';
+
+  const padding = 4 * scale;
+  const lineHeight = textElement.fontSize * scale * 1.5;
+
+  if (textElement.writingMode === 'vertical') {
+    // 縦書き: 右から左へ列を描画
+    const chars = textElement.content.split('');
+    let x = canvas.width - padding - textElement.fontSize * scale;
+    let y = padding;
+
+    for (const char of chars) {
+      if (char === '\n') {
+        x -= lineHeight;
+        y = padding;
+        continue;
+      }
+
+      // 列の終端に達したら次の列へ
+      if (y + textElement.fontSize * scale > canvas.height - padding) {
+        x -= lineHeight;
+        y = padding;
+      }
+
+      ctx.fillText(char, x, y);
+      y += textElement.fontSize * scale;
+    }
+  } else {
+    // 横書き: 上から下へ行を描画
+    const lines = textElement.content.split('\n');
+    let y = padding;
+
+    for (const line of lines) {
+      ctx.fillText(line, padding, y);
+      y += lineHeight;
+    }
+  }
+
+  return canvas.toDataURL('image/png');
+}
+
+/**
  * レイアウトをPDFとしてエクスポート
  * P3-006: 印刷用PDF出力
  */
@@ -231,6 +292,30 @@ export async function exportLayoutToPDF(
         });
       } catch (error) {
         console.error('Failed to embed snippet:', error);
+      }
+    }
+
+    // テキスト要素を描画
+    if (layoutPage.textElements) {
+      for (const textElement of layoutPage.textElements) {
+        try {
+          // テキストをCanvasに描画
+          const textImage = await renderTextElementToImage(textElement);
+          if (!textImage) continue;
+
+          const imageBytes = await fetch(textImage).then((res) => res.arrayBuffer());
+          const image = await pdfDoc.embedPng(imageBytes);
+
+          // 配置位置とサイズを計算
+          const x = margin + textElement.position.x * dpiRatio;
+          const width = textElement.size.width * dpiRatio;
+          const height = textElement.size.height * dpiRatio;
+          const y = pageHeight - margin - textElement.position.y * dpiRatio - height;
+
+          page.drawImage(image, { x, y, width, height });
+        } catch (error) {
+          console.error('Failed to embed text element:', error);
+        }
       }
     }
   }

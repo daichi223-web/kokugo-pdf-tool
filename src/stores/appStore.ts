@@ -20,6 +20,7 @@ import type {
   ExportFormat,
   ProgressInfo,
   AppSettings,
+  TextElement,
 } from '../types';
 import { getPaperDimensions } from '../types';
 import { generateId, mmToPx } from '../utils/helpers';
@@ -440,6 +441,7 @@ export const useAppStore = create<Store>()(
           paperSize,
           orientation,
           snippets: [],
+          textElements: [],
         };
         set((state) => ({
           layoutPages: [...state.layoutPages, newPage],
@@ -1024,6 +1026,57 @@ export const useAppStore = create<Store>()(
                   }),
                 }
               : p
+          ),
+        }));
+      },
+
+      // テキスト要素操作
+      addTextElement: (pageId: string, position: Position) => {
+        get().pushLayoutHistory();
+
+        const newTextElement: TextElement = {
+          id: generateId(),
+          content: 'テキスト',
+          position,
+          size: { width: 100, height: 200 },
+          fontSize: 16,
+          fontFamily: 'serif',
+          color: '#000000',
+          writingMode: 'vertical',  // デフォルトは縦書き
+          textAlign: 'left',
+        };
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, textElements: [...page.textElements, newTextElement] }
+              : page
+          ),
+        }));
+      },
+
+      updateTextElement: (pageId: string, textId: string, updates: Partial<TextElement>) => {
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  textElements: page.textElements.map((t) =>
+                    t.id === textId ? { ...t, ...updates } : t
+                  ),
+                }
+              : page
+          ),
+        }));
+      },
+
+      removeTextElement: (pageId: string, textId: string) => {
+        get().pushLayoutHistory();
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, textElements: page.textElements.filter((t) => t.id !== textId) }
+              : page
           ),
         }));
       },

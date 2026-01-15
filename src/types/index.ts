@@ -76,6 +76,7 @@ export interface LayoutPage {
   paperSize: PaperSize;
   orientation: PaperOrientation;
   snippets: PlacedSnippet[];
+  textElements: TextElement[];
 }
 
 export interface PlacedSnippet {
@@ -83,6 +84,19 @@ export interface PlacedSnippet {
   position: Position;
   size: Size;
   rotation: number;
+}
+
+// テキスト要素の型
+export interface TextElement {
+  id: string;
+  content: string;
+  position: Position;
+  size: Size;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  writingMode: 'horizontal' | 'vertical';  // 横書き or 縦書き
+  textAlign: 'left' | 'center' | 'right';
 }
 
 export interface Position {
@@ -230,4 +244,9 @@ export interface AppActions {
   alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => void;
   distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => void;
+
+  // テキスト要素操作
+  addTextElement: (pageId: string, position: Position) => void;
+  updateTextElement: (pageId: string, textId: string, updates: Partial<TextElement>) => void;
+  removeTextElement: (pageId: string, textId: string) => void;
 }
