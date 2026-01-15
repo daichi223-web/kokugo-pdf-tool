@@ -21,7 +21,8 @@ import type {
   ProgressInfo,
   AppSettings,
 } from '../types';
-import { generateId } from '../utils/helpers';
+import { getPaperDimensions } from '../types';
+import { generateId, mmToPx } from '../utils/helpers';
 import { loadPDF, renderPageToImage, extractTextFromPage } from '../utils/pdfUtils';
 import { runOCR } from '../utils/ocrUtils';
 import { exportToText, exportToMarkdown, exportToDocx, exportToPDF } from '../utils/exportUtils';
@@ -739,8 +740,6 @@ export const useAppStore = create<Store>()(
         if (selectedPlaced.length === 0) return;
 
         // 用紙サイズを取得
-        const { getPaperDimensions } = require('../types');
-        const { mmToPx } = require('../utils/helpers');
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
@@ -813,8 +812,6 @@ export const useAppStore = create<Store>()(
         get().pushLayoutHistory();
 
         // 用紙サイズを取得
-        const { getPaperDimensions } = require('../types');
-        const { mmToPx } = require('../utils/helpers');
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
