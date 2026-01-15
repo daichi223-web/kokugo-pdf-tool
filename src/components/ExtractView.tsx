@@ -1,9 +1,10 @@
 // =============================================================================
 // テキスト抽出ビュー
 // P1-005: OCR編集画面（左右並列）
+// OCR-LAYOUT: 縦書きレイアウト表示対応
 // =============================================================================
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Play,
   Download,
@@ -12,9 +13,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Layers,
+  AlignLeft,
+  AlignJustify,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { PageThumbnails } from './PageThumbnails';
+import { createVerticalLayout, layoutToHTML } from '../utils/ocrUtils';
 import type { ExportFormat } from '../types';
 
 export function ExtractView() {
@@ -25,17 +30,35 @@ export function ExtractView() {
     setActivePage,
     updatePageText,
     startOCR,
+    startOCRForPages,
     exportText,
     copyToClipboard,
     settings,
     updateSettings,
+    selectedPageNumbers,
+    clearPageSelection,
   } = useAppStore();
 
   const [copySuccess, setCopySuccess] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('txt');
+  const [ocrSelectMode, setOcrSelectMode] = useState(false);
+  const [layoutViewMode, setLayoutViewMode] = useState(false);  // 縦書きレイアウト表示モード
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
+
+  // OCRブロックからレイアウトHTMLを生成
+  const layoutHTML = useMemo(() => {
+    if (!activePage?.ocrBlocks || activePage.ocrBlocks.length === 0) {
+      return null;
+    }
+    const layout = createVerticalLayout(
+      { text: activePage.textContent || '', confidence: 0, blocks: activePage.ocrBlocks },
+      activePage.width,
+      activePage.height
+    );
+    return layoutToHTML(layout);
+  }, [activePage?.ocrBlocks, activePage?.textContent, activePage?.width, activePage?.height]);
 
   if (!activeFile) {
     return (
@@ -84,13 +107,50 @@ export function ExtractView() {
     <div className="h-full flex flex-col gap-4">
       {/* ツールバー */}
       <div className="toolbar rounded-lg shadow">
+        {/* OCRページ選択モード切替 */}
+        <button
+          className={`flex items-center gap-1 px-3 py-1.5 rounded ${
+            ocrSelectMode
+              ? 'bg-purple-500 text-white hover:bg-purple-600'
+              : 'border hover:bg-gray-50'
+          }`}
+          onClick={() => {
+            if (ocrSelectMode) {
+              clearPageSelection();
+            }
+            setOcrSelectMode(!ocrSelectMode);
+          }}
+          title="OCRするページを選択"
+        >
+          <Layers className="w-4 h-4" />
+          ページ選択
+        </button>
+
+        {/* 選択中の表示 */}
+        {ocrSelectMode && selectedPageNumbers.length > 0 && (
+          <span className="text-sm text-purple-600 font-medium">
+            {selectedPageNumbers.length}ページ選択中
+          </span>
+        )}
+
         {/* OCR実行 */}
         <button
-          className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
-          onClick={() => startOCR(activeFile.id)}
+          className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          onClick={() => {
+            if (ocrSelectMode && selectedPageNumbers.length > 0) {
+              startOCRForPages(activeFile.id, selectedPageNumbers);
+              setOcrSelectMode(false);
+              clearPageSelection();
+            } else {
+              startOCR(activeFile.id);
+            }
+          }}
+          disabled={ocrSelectMode && selectedPageNumbers.length === 0}
         >
           <Play className="w-4 h-4" />
-          OCR実行
+          {ocrSelectMode && selectedPageNumbers.length > 0
+            ? `選択ページをOCR (${selectedPageNumbers.length})`
+            : 'OCR実行（全ページ）'}
         </button>
 
         <div className="w-px h-6 bg-gray-200" />
@@ -124,6 +184,27 @@ export function ExtractView() {
 
         <div className="w-px h-6 bg-gray-200" />
 
+        {/* OCR-LAYOUT: レイアウト表示切替 */}
+        <button
+          className={`flex items-center gap-1 px-3 py-1.5 rounded ${
+            layoutViewMode
+              ? 'bg-amber-500 text-white hover:bg-amber-600'
+              : 'border hover:bg-gray-50'
+          }`}
+          onClick={() => setLayoutViewMode(!layoutViewMode)}
+          disabled={!layoutHTML}
+          title="縦書き/横書きレイアウト表示"
+        >
+          {layoutViewMode ? (
+            <AlignJustify className="w-4 h-4" />
+          ) : (
+            <AlignLeft className="w-4 h-4" />
+          )}
+          {layoutViewMode ? 'レイアウト' : 'テキスト'}
+        </button>
+
+        <div className="w-px h-6 bg-gray-200" />
+
         {/* エクスポート */}
         <select
           className="border rounded px-2 py-1 text-sm"
@@ -147,7 +228,7 @@ export function ExtractView() {
       {/* メインエディタエリア */}
       <div className="flex-1 flex gap-4 overflow-hidden">
         {/* サムネイル */}
-        <PageThumbnails file={activeFile} />
+        <PageThumbnails file={activeFile} multiSelectMode={ocrSelectMode} />
 
         {/* P1-005: 左右並列表示 */}
         <div className="flex-1 editor-container">
@@ -187,10 +268,10 @@ export function ExtractView() {
             </div>
           </div>
 
-          {/* 右：抽出テキスト（編集可能） */}
+          {/* 右：抽出テキスト（編集可能）/ レイアウト表示 */}
           <div className="editor-panel">
             <div className="editor-panel-header flex items-center justify-between">
-              <span>抽出テキスト</span>
+              <span>{layoutViewMode && layoutHTML ? 'レイアウト表示' : '抽出テキスト'}</span>
               {activePage && (
                 <span className="text-xs text-gray-500">
                   OCR: {activePage.ocrStatus === 'completed' ? '完了' :
@@ -200,12 +281,21 @@ export function ExtractView() {
               )}
             </div>
             <div className="editor-panel-content">
-              <textarea
-                className="text-editor"
-                value={activePage?.textContent || ''}
-                onChange={(e) => handleTextChange(e.target.value)}
-                placeholder="OCRを実行するか、テキストを直接入力してください..."
-              />
+              {layoutViewMode && layoutHTML ? (
+                // レイアウト表示モード
+                <div
+                  className="layout-preview h-full"
+                  dangerouslySetInnerHTML={{ __html: layoutHTML }}
+                />
+              ) : (
+                // テキスト編集モード
+                <textarea
+                  className="text-editor"
+                  value={activePage?.textContent || ''}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  placeholder="OCRを実行するか、テキストを直接入力してください..."
+                />
+              )}
             </div>
           </div>
         </div>

@@ -22,6 +22,18 @@ export interface PDFPage {
   textContent?: string;
   ocrStatus: OCRStatus;
   ocrProgress: number;
+  ocrBlocks?: OCRBlock[];  // OCR結果のブロック情報（位置情報付き）
+}
+
+export interface OCRBlock {
+  text: string;
+  bbox: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  };
+  confidence: number;
 }
 
 export type FileStatus = 'pending' | 'processing' | 'completed' | 'error';
@@ -32,12 +44,6 @@ export interface OCRResult {
   text: string;
   confidence: number;
   blocks: OCRBlock[];
-}
-
-export interface OCRBlock {
-  text: string;
-  bbox: BoundingBox;
-  confidence: number;
 }
 
 export interface BoundingBox {
@@ -161,6 +167,7 @@ export interface AppActions {
 
   // OCR操作
   startOCR: (fileId: string) => Promise<void>;
+  startOCRForPages: (fileId: string, pageNumbers: number[]) => Promise<void>;
   cancelOCR: () => void;
 
   // スニペット操作

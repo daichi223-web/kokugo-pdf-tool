@@ -176,3 +176,55 @@ body {
 .toast-info {
   @apply bg-blue-500;
 }
+
+/* 縦書きレイアウト */
+.ocr-vertical-layout {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  padding: 1rem;
+  font-family: "Yu Mincho", "游明朝", "Hiragino Mincho Pro", serif;
+  line-height: 1.8;
+  height: 100%;
+  overflow-x: auto;
+}
+
+.ocr-vertical-layout .ocr-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.ocr-vertical-layout .ocr-block {
+  margin-bottom: 0.5em;
+}
+
+/* 横書きレイアウト */
+.ocr-horizontal-layout {
+  writing-mode: horizontal-tb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  font-family: "Yu Mincho", "游明朝", "Hiragino Mincho Pro", serif;
+  line-height: 1.8;
+}
+
+.ocr-horizontal-layout .ocr-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.ocr-horizontal-layout .ocr-block {
+  margin-right: 0.25em;
+}
+
+/* レイアウトプレビューコンテナ */
+.layout-preview {
+  @apply bg-amber-50 border border-amber-200 rounded-lg overflow-auto;
+  min-height: 300px;
+  max-height: 100%;
+}

@@ -258,6 +258,7 @@ export const useAppStore = create<Store>()(
                                 textContent: result.text,
                                 ocrStatus: 'completed' as const,
                                 ocrProgress: 100,
+                                ocrBlocks: result.blocks,  // OCRブロック情報も保存
                               }
                             : p
                         ),
@@ -275,6 +276,108 @@ export const useAppStore = create<Store>()(
                       ...f,
                       pages: f.pages.map((p) =>
                         p.pageNumber === page.pageNumber
+                          ? { ...p, ocrStatus: 'failed' as const }
+                          : p
+                      ),
+                    }
+                  : f
+              ),
+            }));
+          }
+        }
+
+        set({ isProcessing: false, progress: null });
+      },
+
+      // 選択したページのみOCR実行
+      startOCRForPages: async (fileId: string, pageNumbers: number[]) => {
+        const file = get().files.find((f) => f.id === fileId);
+        if (!file || pageNumbers.length === 0) return;
+
+        set({ isProcessing: true });
+        const { isBenchmarkMode } = get();
+
+        for (let i = 0; i < pageNumbers.length; i++) {
+          const pageNumber = pageNumbers[i];
+          const page = file.pages.find((p) => p.pageNumber === pageNumber);
+          if (!page) continue;
+          if (page.ocrStatus === 'completed' && page.textContent) continue;
+
+          set({
+            progress: {
+              current: i + 1,
+              total: pageNumbers.length,
+              message: `OCR処理中: ページ ${pageNumber} (${i + 1}/${pageNumbers.length})`,
+              estimatedTimeRemaining: (pageNumbers.length - i - 1) * 10,
+            },
+          });
+
+          set((state) => ({
+            files: state.files.map((f) =>
+              f.id === fileId
+                ? {
+                    ...f,
+                    pages: f.pages.map((p) =>
+                      p.pageNumber === pageNumber
+                        ? { ...p, ocrStatus: 'processing' as const }
+                        : p
+                    ),
+                  }
+                : f
+            ),
+          }));
+
+          try {
+            if (page.imageData) {
+              const endOcr = isBenchmarkMode ? startMeasure(`ocr-page-${pageNumber}`) : null;
+              const result = await runOCR(page.imageData, (progress) => {
+                set((state) => ({
+                  files: state.files.map((f) =>
+                    f.id === fileId
+                      ? {
+                          ...f,
+                          pages: f.pages.map((p) =>
+                            p.pageNumber === pageNumber
+                              ? { ...p, ocrProgress: progress }
+                              : p
+                          ),
+                        }
+                      : f
+                  ),
+                }));
+              });
+              endOcr?.({ page: pageNumber, textLength: result.text.length });
+
+              set((state) => ({
+                files: state.files.map((f) =>
+                  f.id === fileId
+                    ? {
+                        ...f,
+                        pages: f.pages.map((p) =>
+                          p.pageNumber === pageNumber
+                            ? {
+                                ...p,
+                                textContent: result.text,
+                                ocrStatus: 'completed' as const,
+                                ocrProgress: 100,
+                                ocrBlocks: result.blocks,
+                              }
+                            : p
+                        ),
+                      }
+                    : f
+                ),
+              }));
+            }
+          } catch (error) {
+            console.error(`OCR error on page ${pageNumber}:`, error);
+            set((state) => ({
+              files: state.files.map((f) =>
+                f.id === fileId
+                  ? {
+                      ...f,
+                      pages: f.pages.map((p) =>
+                        p.pageNumber === pageNumber
                           ? { ...p, ocrStatus: 'failed' as const }
                           : p
                       ),

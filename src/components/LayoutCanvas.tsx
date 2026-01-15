@@ -4,7 +4,7 @@
 // P3-005: グリッド/ガイド表示
 // =============================================================================
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { mmToPx } from '../utils/helpers';
 import type { LayoutPage, Snippet, Position } from '../types';
@@ -102,9 +102,11 @@ export function LayoutCanvas({
     [layoutPage.snippets, zoom, setSelectedSnippet]
   );
 
-  // ドラッグ中 / リサイズ中
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  // document監視でリサイズ/ドラッグ（画面外でも追跡）
+  useEffect(() => {
+    if (!dragging && !resizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
 
@@ -140,15 +142,21 @@ export function LayoutCanvas({
         });
         updateSnippetPosition(layoutPage.id, dragging, newPos);
       }
-    },
-    [dragging, dragOffset, resizing, zoom, snapPosition, layoutPage.id, updateSnippetPosition, updateSnippetSize]
-  );
+    };
 
-  // ドラッグ終了
-  const handleMouseUp = useCallback(() => {
-    setDragging(null);
-    setResizing(null);
-  }, []);
+    const handleMouseUp = () => {
+      setDragging(null);
+      setResizing(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragging, dragOffset, resizing, zoom, snapPosition, layoutPage.id, updateSnippetPosition, updateSnippetSize]);
 
   // ドロップ受付
   const handleDrop = useCallback(
@@ -186,9 +194,6 @@ export function LayoutCanvas({
           : 'none',
         backgroundSize: `${mmToPx(gridSize, 96) * zoom}px ${mmToPx(gridSize, 96) * zoom}px`,
       }}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onClick={() => setSelectedSnippet(null)}
@@ -222,6 +227,10 @@ export function LayoutCanvas({
               height: placed.size.height * zoom,
             }}
             onMouseDown={(e) => handleDragStart(e, placed.snippetId)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedSnippet(placed.snippetId);
+            }}
           >
             <img
               src={snippet.imageData}
