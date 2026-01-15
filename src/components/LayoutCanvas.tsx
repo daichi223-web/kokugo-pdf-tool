@@ -425,6 +425,7 @@ export function LayoutCanvas({
       onDragOver={handleDragOver}
       onClick={() => {
         setSelectedSnippet(null);
+        setSelectedTextId(null);
         clearPlacedSnippetSelection();
       }}
     >
@@ -639,12 +640,13 @@ export function LayoutCanvas({
           >
             {isEditing ? (
               <textarea
-                className="w-full h-full border-none outline-none resize-none bg-transparent"
+                className="w-full h-full border-2 border-green-400 outline-none resize-none p-1"
                 style={{
                   writingMode: textElement.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
                   fontSize: textElement.fontSize * zoom,
                   fontFamily: textElement.fontFamily,
                   color: textElement.color,
+                  backgroundColor: 'rgba(255,255,255,0.95)',
                 }}
                 value={textElement.content}
                 autoFocus
@@ -660,6 +662,7 @@ export function LayoutCanvas({
                     setEditingTextId(null);
                   }
                 }}
+                onClick={(e) => e.stopPropagation()}
               />
             ) : (
               <div className="w-full h-full p-1 whitespace-pre-wrap break-all">
