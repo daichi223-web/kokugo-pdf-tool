@@ -50,6 +50,15 @@ interface Store extends AppState, AppActions {
   startBenchmark: () => void;
   stopBenchmark: () => BenchmarkResult;
   getBenchmarkReport: () => string;
+
+  // Undo機能
+  layoutHistory: LayoutPage[][];
+  pushLayoutHistory: () => void;
+  undoLayout: () => void;
+
+  // スニペット再トリミング
+  reCropSnippetId: string | null;
+  setReCropSnippet: (snippetId: string | null) => void;
 }
 
 export const useAppStore = create<Store>()(
@@ -70,6 +79,8 @@ export const useAppStore = create<Store>()(
       selectedPageNumbers: [],
       benchmarkResult: null,
       isBenchmarkMode: false,
+      layoutHistory: [],
+      reCropSnippetId: null,
 
       // ファイル操作
       // P1-001: PDF読み込み（単体）
@@ -447,6 +458,9 @@ export const useAppStore = create<Store>()(
       },
 
       addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
         const snippet = get().snippets.find((s) => s.id === snippetId);
         // トリミングサイズを初期サイズとして使用
         const initialSize = snippet
@@ -504,6 +518,9 @@ export const useAppStore = create<Store>()(
       },
 
       applySnippetSizeToLayout: (pageId: string, size: Size) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
         set((state) => ({
           layoutPages: state.layoutPages.map((page) =>
             page.id === pageId
@@ -517,6 +534,9 @@ export const useAppStore = create<Store>()(
       },
 
       removeSnippetFromLayout: (pageId: string, snippetId: string) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
         set((state) => ({
           layoutPages: state.layoutPages.map((page) =>
             page.id === pageId
@@ -647,6 +667,36 @@ export const useAppStore = create<Store>()(
           allPages.push(i);
         }
         set({ selectedPageNumbers: allPages });
+      },
+
+      // Undo機能（配置操作）
+      pushLayoutHistory: () => {
+        const { layoutPages, layoutHistory } = get();
+        // 現在の状態をディープコピーして履歴に追加（最大20件）
+        const newHistory = [
+          ...layoutHistory.slice(-19),
+          JSON.parse(JSON.stringify(layoutPages)),
+        ];
+        set({ layoutHistory: newHistory });
+      },
+
+      undoLayout: () => {
+        const { layoutHistory } = get();
+        if (layoutHistory.length === 0) return;
+
+        const newHistory = [...layoutHistory];
+        const previousState = newHistory.pop();
+        if (previousState) {
+          set({
+            layoutPages: previousState,
+            layoutHistory: newHistory,
+          });
+        }
+      },
+
+      // スニペット再トリミング
+      setReCropSnippet: (snippetId: string | null) => {
+        set({ reCropSnippetId: snippetId });
       },
 
       // NF-003: パフォーマンス計測

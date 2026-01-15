@@ -34,6 +34,8 @@ export function LayoutCanvas({
     selectedSnippetId,
     setSelectedSnippet,
     addSnippetToLayout,
+    pushLayoutHistory,
+    undoLayout,
   } = useAppStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -233,6 +235,10 @@ export function LayoutCanvas({
     };
 
     const handleMouseUp = () => {
+      // ドラッグ/リサイズ終了時に履歴を保存
+      if (dragging || resizing) {
+        pushLayoutHistory();
+      }
       setDragging(null);
       setResizing(null);
     };
@@ -263,7 +269,23 @@ export function LayoutCanvas({
     layoutPage.id,
     updateSnippetPosition,
     updateSnippetSize,
+    pushLayoutHistory,
   ]);
+
+  // Ctrl+Z で Undo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undoLayout();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [undoLayout]);
 
   // ドロップ受付
   const handleDrop = useCallback(
@@ -342,7 +364,7 @@ export function LayoutCanvas({
               top: 0,
               width: 2,
               height: canvasHeight * zoom,
-              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+              backgroundColor: 'rgba(0, 0, 0, 0.4)',
             }}
           />
           {/* 縦方向 2/3 ライン */}
@@ -353,7 +375,7 @@ export function LayoutCanvas({
               top: 0,
               width: 2,
               height: canvasHeight * zoom,
-              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+              backgroundColor: 'rgba(0, 0, 0, 0.4)',
             }}
           />
           {/* 横方向 1/2 ライン */}
@@ -375,7 +397,7 @@ export function LayoutCanvas({
               top: (canvasHeight / 3) * zoom,
               width: canvasWidth * zoom,
               height: 2,
-              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+              backgroundColor: 'rgba(0, 0, 0, 0.4)',
             }}
           />
           {/* 横方向 2/3 ライン */}
@@ -386,7 +408,7 @@ export function LayoutCanvas({
               top: (canvasHeight * 2 / 3) * zoom,
               width: canvasWidth * zoom,
               height: 2,
-              backgroundColor: 'rgba(239, 68, 68, 0.4)',
+              backgroundColor: 'rgba(0, 0, 0, 0.4)',
             }}
           />
         </>

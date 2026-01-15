@@ -191,15 +191,20 @@ export async function exportLayoutToPDF(
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
 
+  // 画面は96 DPI、PDFは72 DPI（ポイント）
+  const screenDpi = 96;
+  const pdfDpi = 72;
+  const dpiRatio = pdfDpi / screenDpi;
+
   for (const layoutPage of layoutPages) {
     const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
-    const pageWidth = mmToPx(paperSize.width, 72); // 72 DPI for PDF points
-    const pageHeight = mmToPx(paperSize.height, 72);
+    const pageWidth = mmToPx(paperSize.width, pdfDpi); // PDF points
+    const pageHeight = mmToPx(paperSize.height, pdfDpi);
 
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
     // 余白設定（15mm）
-    const margin = mmToPx(15, 72);
+    const margin = mmToPx(15, pdfDpi);
 
     for (const placedSnippet of layoutPage.snippets) {
       const snippet = snippets.find((s) => s.id === placedSnippet.snippetId);
@@ -212,12 +217,11 @@ export async function exportLayoutToPDF(
         );
         const image = await pdfDoc.embedPng(imageBytes);
 
-        // 配置位置とサイズを計算
-        const x = margin + mmToPx(placedSnippet.position.x, 72);
-        const y =
-          pageHeight - margin - mmToPx(placedSnippet.position.y, 72) - mmToPx(placedSnippet.size.height, 72);
-        const width = mmToPx(placedSnippet.size.width, 72);
-        const height = mmToPx(placedSnippet.size.height, 72);
+        // 配置位置とサイズを計算（96 DPIピクセル → 72 DPIポイント）
+        const x = margin + placedSnippet.position.x * dpiRatio;
+        const width = placedSnippet.size.width * dpiRatio;
+        const height = placedSnippet.size.height * dpiRatio;
+        const y = pageHeight - margin - placedSnippet.position.y * dpiRatio - height;
 
         page.drawImage(image, {
           x,

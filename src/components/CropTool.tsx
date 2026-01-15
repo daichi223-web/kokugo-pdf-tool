@@ -25,6 +25,7 @@ interface CropToolProps {
   onTemplateApplied?: () => void;
   batchMode?: boolean;
   onBatchCrop?: (cropArea: CropArea) => void;
+  onCropComplete?: () => void;
 }
 
 type DragMode = 'none' | 'select' | 'move' | 'resize-nw' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w';
@@ -41,6 +42,7 @@ export function CropTool({
   onTemplateApplied,
   batchMode = false,
   onBatchCrop,
+  onCropComplete,
 }: CropToolProps) {
   const { addSnippet } = useAppStore();
 
@@ -358,7 +360,12 @@ export function CropTool({
     }
 
     setSelection(null);
-  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, addSnippet, batchMode, onBatchCrop]);
+
+    // 再トリミング完了コールバック
+    if (onCropComplete) {
+      onCropComplete();
+    }
+  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, addSnippet, batchMode, onBatchCrop, onCropComplete]);
 
   const handleCancel = useCallback(() => {
     setSelection(null);

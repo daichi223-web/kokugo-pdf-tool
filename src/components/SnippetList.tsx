@@ -3,7 +3,7 @@
 // P3-001: トリミング機能 - スニペット管理
 // =============================================================================
 
-import { Trash2, Move } from 'lucide-react';
+import { Trash2, Move, Crop } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
 export function SnippetList() {
@@ -14,6 +14,7 @@ export function SnippetList() {
     removeSnippet,
     activeLayoutPageId,
     addSnippetToLayout,
+    setReCropSnippet,
   } = useAppStore();
 
   const handleDragStart = (e: React.DragEvent, snippetId: string) => {
@@ -60,6 +61,16 @@ export function SnippetList() {
 
                 {/* オーバーレイ */}
                 <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center gap-1 opacity-0 hover:opacity-100">
+                  <button
+                    className="p-1.5 bg-green-500 text-white rounded hover:bg-green-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReCropSnippet(snippet.id);
+                    }}
+                    title="再トリミング"
+                  >
+                    <Crop className="w-4 h-4" />
+                  </button>
                   <button
                     className="p-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
                     onClick={(e) => {

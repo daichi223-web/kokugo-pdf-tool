@@ -31,6 +31,7 @@ import {
   getLatestTemplateAny,
   getTemplates,
 } from '../utils/cropTemplateUtils';
+import { exportLayoutToPDF } from '../utils/exportUtils';
 
 export function LayoutView() {
   const {
@@ -49,6 +50,8 @@ export function LayoutView() {
     selectedPageNumbers,
     addSnippet,
     applySnippetSizeToLayout,
+    reCropSnippetId,
+    setReCropSnippet,
   } = useAppStore();
 
   const [zoom, setZoom] = useState(1);
@@ -63,10 +66,12 @@ export function LayoutView() {
   const [showTemplateHistory, setShowTemplateHistory] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<CropTemplate | null>(null);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const activeFile = files.find((f) => f.id === activeFileId);
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
   const activeLayout = layoutPages.find((p) => p.id === activeLayoutPageId);
+  const reCropSnippet = snippets.find((s) => s.id === reCropSnippetId);
   const selectedPlacedSnippet = activeLayout?.snippets.find(
     (snippet) => snippet.snippetId === selectedSnippetId
   );
@@ -159,6 +164,27 @@ export function LayoutView() {
       setIsBatchProcessing(false);
     }
   }, [activeFile, selectedPageNumbers, addSnippet]);
+
+  // PDF出力
+  const handleExportPDF = useCallback(async () => {
+    if (layoutPages.length === 0) return;
+
+    setIsExporting(true);
+    try {
+      const blob = await exportLayoutToPDF(layoutPages, snippets);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `layout_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF出力エラー:', error);
+      alert('PDF出力に失敗しました');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [layoutPages, snippets]);
 
   return (
     <div className="h-full flex flex-col gap-4">
@@ -332,11 +358,12 @@ export function LayoutView() {
 
         {/* P3-006: 印刷用PDF出力 */}
         <button
-          className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600"
-          disabled={layoutPages.length === 0}
+          className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+          disabled={layoutPages.length === 0 || isExporting}
+          onClick={handleExportPDF}
         >
           <Download className="w-4 h-4" />
-          PDF出力
+          {isExporting ? '出力中...' : 'PDF出力'}
         </button>
       </div>
 
@@ -365,7 +392,39 @@ export function LayoutView() {
 
           {mode === 'crop' ? (
             // P3-001: トリミング機能 + BATCH-002: 一括トリミング
-            activePage?.imageData ? (
+            reCropSnippet ? (
+              // 再トリミングモード
+              <div className="space-y-2">
+                <div className="bg-green-100 border border-green-300 rounded-lg p-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-5 h-5 text-green-600" />
+                    <span className="text-green-800 font-medium">
+                      再トリミングモード
+                    </span>
+                    <span className="text-green-600 text-sm">
+                      （スニペットをさらにトリミング）
+                    </span>
+                  </div>
+                  <button
+                    className="px-2 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300"
+                    onClick={() => setReCropSnippet(null)}
+                  >
+                    キャンセル
+                  </button>
+                </div>
+                <CropTool
+                  imageData={reCropSnippet.imageData}
+                  sourceFileId={reCropSnippet.sourceFileId}
+                  sourcePageNumber={reCropSnippet.sourcePageNumber}
+                  zoom={zoom}
+                  templateScope={templateScope}
+                  templateToApply={pendingTemplate}
+                  onTemplateApplied={() => setPendingTemplate(null)}
+                  batchMode={false}
+                  onCropComplete={() => setReCropSnippet(null)}
+                />
+              </div>
+            ) : activePage?.imageData ? (
               <div className="space-y-2">
                 {/* 選択ページ数の表示と一括適用ボタン */}
                 {selectedPageNumbers.length > 1 && (
