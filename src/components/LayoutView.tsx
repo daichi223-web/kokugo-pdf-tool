@@ -283,18 +283,22 @@ export function LayoutView() {
       {/* ツールバー */}
       <div className="toolbar rounded-lg shadow">
         {/* モード切り替え */}
-        <div className="flex bg-gray-100 rounded p-0.5">
+        <div className="flex bg-gray-200 rounded-lg p-1">
           <button
-            className={`px-3 py-1 rounded text-sm ${
-              mode === 'crop' ? 'bg-white shadow' : ''
+            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${
+              mode === 'crop'
+                ? 'bg-blue-500 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
             }`}
             onClick={() => setMode('crop')}
           >
             トリミング
           </button>
           <button
-            className={`px-3 py-1 rounded text-sm ${
-              mode === 'layout' ? 'bg-white shadow' : ''
+            className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${
+              mode === 'layout'
+                ? 'bg-blue-500 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
             }`}
             onClick={() => setMode('layout')}
           >
@@ -419,7 +423,7 @@ export function LayoutView() {
           <>
             <div className="w-px h-6 bg-gray-200" />
             <button
-              className="flex items-center gap-1 px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+              className="flex items-center gap-1 px-4 py-2 bg-orange-500 text-white font-bold rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300 shadow-sm"
               onClick={() => {
                 if (activeLayout && selectedPlacedSnippet) {
                   applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size);
