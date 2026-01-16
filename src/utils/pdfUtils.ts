@@ -47,6 +47,10 @@ export async function loadPDF(file: File): Promise<PDFData> {
       cMapPacked: true,
       // 標準フォントのフォールバック
       standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/standard_fonts/`,
+      // フォントが埋め込まれていないPDF対策
+      disableFontFace: false,
+      // システムフォントを使用（埋め込みフォントがない場合のフォールバック）
+      useSystemFonts: true,
     }).promise;
   } catch (error) {
     throw new Error(`PDFの読み込みに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
@@ -87,9 +91,14 @@ export async function renderPageToImage(
   canvas.width = viewport.width;
   canvas.height = viewport.height;
 
+  // 背景を白で塗りつぶし（透明背景対策）
+  context.fillStyle = 'white';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
   await page.render({
     canvasContext: context,
     viewport,
+    intent: 'display',  // 表示用に最適化
   }).promise;
 
   return canvas.toDataURL('image/png');
@@ -151,9 +160,14 @@ export async function cropPageArea(
   fullCanvas.width = viewport.width;
   fullCanvas.height = viewport.height;
 
+  // 背景を白で塗りつぶし
+  fullContext.fillStyle = 'white';
+  fullContext.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+
   await page.render({
     canvasContext: fullContext,
     viewport,
+    intent: 'display',
   }).promise;
 
   // 切り出し領域を計算（スケール適用）
