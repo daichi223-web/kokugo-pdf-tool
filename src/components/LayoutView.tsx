@@ -72,6 +72,7 @@ export function LayoutView() {
   const [layoutZoom, setLayoutZoom] = useState(1);
   const [cropZoom, setCropZoom] = useState(1);
   const [mode, setMode] = useState<'crop' | 'layout'>('crop');
+  const [layoutViewMode, setLayoutViewMode] = useState<'tab' | 'continuous'>('continuous'); // 連続表示がデフォルト
 
   // 現在のモードに応じたズーム値
   const zoom = mode === 'layout' ? layoutZoom : cropZoom;
@@ -723,51 +724,129 @@ export function LayoutView() {
           ) : (
             // P3-002: 再配置エディタ
             <div className="w-full space-y-4 flex flex-col items-center">
-              {/* レイアウトページタブ */}
+              {/* 表示モード切り替え & ページ情報 */}
               {layoutPages.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  {layoutPages.map((page, index) => (
-                    <div
-                      key={page.id}
-                      role="tab"
-                      tabIndex={0}
-                      aria-selected={activeLayoutPageId === page.id}
-                      className={`flex items-center gap-1 px-3 py-1 rounded cursor-pointer ${
-                        activeLayoutPageId === page.id
+                <div className="flex items-center gap-4 flex-wrap">
+                  {/* 表示モード切り替え */}
+                  <div className="flex items-center gap-1 bg-gray-100 rounded p-1">
+                    <button
+                      className={`px-2 py-1 text-xs rounded ${
+                        layoutViewMode === 'continuous'
                           ? 'bg-blue-500 text-white'
-                          : 'bg-white hover:bg-gray-100'
+                          : 'hover:bg-gray-200'
                       }`}
-                      onClick={() => setActiveLayoutPage(page.id)}
-                      onKeyDown={(e) => e.key === 'Enter' && setActiveLayoutPage(page.id)}
+                      onClick={() => setLayoutViewMode('continuous')}
                     >
-                      <span>ページ {index + 1}</span>
-                      <span className="text-xs opacity-75">
-                        ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
-                      </span>
-                      <button
-                        className="ml-1 p-0.5 hover:bg-red-200 rounded"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeLayoutPage(page.id);
-                        }}
-                        aria-label={`ページ${index + 1}を削除`}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      連続表示
+                    </button>
+                    <button
+                      className={`px-2 py-1 text-xs rounded ${
+                        layoutViewMode === 'tab'
+                          ? 'bg-blue-500 text-white'
+                          : 'hover:bg-gray-200'
+                      }`}
+                      onClick={() => setLayoutViewMode('tab')}
+                    >
+                      タブ表示
+                    </button>
+                  </div>
+
+                  {/* タブ表示時のみページタブを表示 */}
+                  {layoutViewMode === 'tab' && (
+                    <div className="flex gap-2 flex-wrap">
+                      {layoutPages.map((page, index) => (
+                        <div
+                          key={page.id}
+                          role="tab"
+                          tabIndex={0}
+                          aria-selected={activeLayoutPageId === page.id}
+                          className={`flex items-center gap-1 px-3 py-1 rounded cursor-pointer ${
+                            activeLayoutPageId === page.id
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-white hover:bg-gray-100'
+                          }`}
+                          onClick={() => setActiveLayoutPage(page.id)}
+                          onKeyDown={(e) => e.key === 'Enter' && setActiveLayoutPage(page.id)}
+                        >
+                          <span>ページ {index + 1}</span>
+                          <span className="text-xs opacity-75">
+                            ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
+                          </span>
+                          <button
+                            className="ml-1 p-0.5 hover:bg-red-200 rounded"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeLayoutPage(page.id);
+                            }}
+                            aria-label={`ページ${index + 1}を削除`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {/* 連続表示時のページ数表示 */}
+                  {layoutViewMode === 'continuous' && (
+                    <span className="text-sm text-gray-600">
+                      {layoutPages.length}ページ
+                    </span>
+                  )}
                 </div>
               )}
 
               {/* キャンバス */}
-              {activeLayout ? (
-                <LayoutCanvas
-                  layoutPage={activeLayout}
-                  snippets={snippets}
-                  zoom={zoom}
-                  showGrid={settings.showGrid}
-                  gridSize={settings.gridSize}
-                />
+              {layoutPages.length > 0 ? (
+                layoutViewMode === 'continuous' ? (
+                  // 連続表示モード：全ページを縦に並べる
+                  <div className="space-y-8">
+                    {layoutPages.map((page, index) => (
+                      <div key={page.id} className="relative">
+                        {/* ページ番号ラベル */}
+                        <div className="absolute -top-6 left-0 flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-600">
+                            ページ {index + 1}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
+                          </span>
+                          <button
+                            className="p-0.5 hover:bg-red-100 rounded text-red-500"
+                            onClick={() => removeLayoutPage(page.id)}
+                            title="ページを削除"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <LayoutCanvas
+                          layoutPage={page}
+                          snippets={snippets}
+                          zoom={zoom}
+                          showGrid={settings.showGrid}
+                          gridSize={settings.gridSize}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  // タブ表示モード：選択されたページのみ
+                  activeLayout ? (
+                    <LayoutCanvas
+                      layoutPage={activeLayout}
+                      snippets={snippets}
+                      zoom={zoom}
+                      showGrid={settings.showGrid}
+                      gridSize={settings.gridSize}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-gray-500">
+                      <div className="text-center">
+                        <p>ページを選択してください</p>
+                      </div>
+                    </div>
+                  )
+                )
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">
                   <div className="text-center">

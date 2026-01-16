@@ -13,6 +13,7 @@ import type {
   PDFPage,
   Snippet,
   LayoutPage,
+  PlacedSnippet,
   PaperSize,
   PaperOrientation,
   Position,
@@ -832,7 +833,8 @@ export const useAppStore = create<Store>()(
       },
 
       // 全スニペットをグリッド配置（スニペットリストから一括配置）
-      arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX: number = 0, gapY: number = 0) => {
+      // autoCreatePages: trueの場合、グリッド容量を超えたら自動でページを追加
+      arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX: number = 0, gapY: number = 0, autoCreatePages: boolean = true) => {
         const { layoutPages, snippets } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || snippets.length === 0) return;
@@ -856,31 +858,101 @@ export const useAppStore = create<Store>()(
         const cellWidth = availableWidth / cols;
         const cellHeight = availableHeight / rows;
 
-        // 全スニペットをリスト順（作成順）で配置（右から左へ）
-        // 全スニペットを同じサイズにしてぴったりくっつける
-        const newPlacedSnippets = snippets.map((snippet, index) => {
-          const col = cols - 1 - (index % cols); // 右から左へ
-          const row = Math.floor(index / cols);
+        // 1ページあたりの容量
+        const capacity = cols * rows;
+        const totalSnippets = snippets.length;
+        const numPagesNeeded = Math.ceil(totalSnippets / capacity);
 
-          return {
-            snippetId: snippet.id,
-            position: {
-              x: col * (cellWidth + gapX),
-              y: row * (cellHeight + gapY),
-            },
-            size: {
-              width: cellWidth,
-              height: cellHeight,
-            },
-            rotation: 0,
-          };
-        });
+        // 自動ページ作成が有効で、複数ページが必要な場合
+        if (autoCreatePages && numPagesNeeded > 1) {
+          // 現在のページのインデックスを取得
+          const currentPageIndex = layoutPages.findIndex((p) => p.id === pageId);
 
-        set((state) => ({
-          layoutPages: state.layoutPages.map((p) =>
-            p.id === pageId ? { ...p, snippets: newPlacedSnippets } : p
-          ),
-        }));
+          // 必要な追加ページを作成
+          const newPages: LayoutPage[] = [];
+          for (let i = 1; i < numPagesNeeded; i++) {
+            newPages.push({
+              id: generateId(),
+              paperSize: page.paperSize,
+              orientation: page.orientation,
+              snippets: [],
+              textElements: [],
+              shapeElements: [],
+            });
+          }
+
+          // 各ページにスニペットを分配
+          const allPageIds = [pageId, ...newPages.map((p) => p.id)];
+          const snippetsByPage: Record<string, PlacedSnippet[]> = {};
+
+          allPageIds.forEach((pid) => {
+            snippetsByPage[pid] = [];
+          });
+
+          snippets.forEach((snippet, index) => {
+            const pageIndex = Math.floor(index / capacity);
+            const positionInPage = index % capacity;
+            const col = cols - 1 - (positionInPage % cols); // 右から左へ
+            const row = Math.floor(positionInPage / cols);
+
+            const targetPageId = allPageIds[pageIndex];
+            snippetsByPage[targetPageId].push({
+              snippetId: snippet.id,
+              position: {
+                x: col * (cellWidth + gapX),
+                y: row * (cellHeight + gapY),
+              },
+              size: {
+                width: cellWidth,
+                height: cellHeight,
+              },
+              rotation: 0,
+            });
+          });
+
+          // ストアを更新
+          set((state) => {
+            // 既存ページを更新し、新しいページを挿入
+            const updatedPages = state.layoutPages.map((p) =>
+              p.id === pageId ? { ...p, snippets: snippetsByPage[pageId] } : p
+            );
+
+            // 現在のページの後ろに新しいページを挿入
+            const insertIndex = currentPageIndex + 1;
+            const finalPages = [
+              ...updatedPages.slice(0, insertIndex),
+              ...newPages.map((np) => ({ ...np, snippets: snippetsByPage[np.id] })),
+              ...updatedPages.slice(insertIndex),
+            ];
+
+            return { layoutPages: finalPages };
+          });
+        } else {
+          // 1ページで収まる場合、または自動作成無効の場合
+          const newPlacedSnippets = snippets.map((snippet, index) => {
+            const col = cols - 1 - (index % cols); // 右から左へ
+            const row = Math.floor(index / cols);
+
+            return {
+              snippetId: snippet.id,
+              position: {
+                x: col * (cellWidth + gapX),
+                y: row * (cellHeight + gapY),
+              },
+              size: {
+                width: cellWidth,
+                height: cellHeight,
+              },
+              rotation: 0,
+            };
+          });
+
+          set((state) => ({
+            layoutPages: state.layoutPages.map((p) =>
+              p.id === pageId ? { ...p, snippets: newPlacedSnippets } : p
+            ),
+          }));
+        }
       },
 
       // 整列機能

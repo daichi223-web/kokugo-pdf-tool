@@ -231,6 +231,26 @@ export function SnippetList() {
             </div>
           </div>
 
+          {/* 必要ページ数の表示 */}
+          {(() => {
+            let cols: number, rows: number;
+            if (gridPattern === 'auto') {
+              const auto = getAutoGrid(snippets.length);
+              cols = auto.cols;
+              rows = auto.rows;
+            } else {
+              cols = GRID_PATTERNS[gridPattern].cols;
+              rows = GRID_PATTERNS[gridPattern].rows;
+            }
+            const capacity = cols * rows;
+            const numPages = Math.ceil(snippets.length / capacity);
+            return numPages > 1 ? (
+              <div className="text-xs text-blue-600 text-center">
+                {snippets.length}枚 ÷ {capacity}枚/ページ = {numPages}ページ作成
+              </div>
+            ) : null;
+          })()}
+
           <button
             className="w-full flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             onClick={handleArrangeAll}
