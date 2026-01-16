@@ -801,33 +801,48 @@ export function LayoutView() {
                 layoutViewMode === 'continuous' ? (
                   // 連続表示モード：全ページを縦に並べる
                   <div className="space-y-8">
-                    {layoutPages.map((page, index) => (
-                      <div key={page.id} className="relative">
-                        {/* ページ番号ラベル */}
-                        <div className="absolute -top-6 left-0 flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-600">
-                            ページ {index + 1}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
-                          </span>
-                          <button
-                            className="p-0.5 hover:bg-red-100 rounded text-red-500"
-                            onClick={() => removeLayoutPage(page.id)}
-                            title="ページを削除"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                    {layoutPages.map((page, index) => {
+                      const isActivePage = activeLayoutPageId === page.id;
+                      return (
+                        <div
+                          key={page.id}
+                          className={`relative cursor-pointer transition-all ${
+                            isActivePage
+                              ? 'ring-4 ring-blue-400 ring-offset-2 rounded'
+                              : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-2 rounded'
+                          }`}
+                          onClick={() => setActiveLayoutPage(page.id)}
+                        >
+                          {/* ページ番号ラベル */}
+                          <div className="absolute -top-6 left-0 flex items-center gap-2">
+                            <span className={`text-sm font-medium ${isActivePage ? 'text-blue-600' : 'text-gray-600'}`}>
+                              ページ {index + 1}
+                              {isActivePage && ' (編集中)'}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
+                            </span>
+                            <button
+                              className="p-0.5 hover:bg-red-100 rounded text-red-500"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeLayoutPage(page.id);
+                              }}
+                              title="ページを削除"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <LayoutCanvas
+                            layoutPage={page}
+                            snippets={snippets}
+                            zoom={zoom}
+                            showGrid={settings.showGrid}
+                            gridSize={settings.gridSize}
+                          />
                         </div>
-                        <LayoutCanvas
-                          layoutPage={page}
-                          snippets={snippets}
-                          zoom={zoom}
-                          showGrid={settings.showGrid}
-                          gridSize={settings.gridSize}
-                        />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   // タブ表示モード：選択されたページのみ
