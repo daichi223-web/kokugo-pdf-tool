@@ -7,8 +7,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// PDF.jsのワーカー設定（バージョンを合わせる）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// PDF.jsのワーカー設定（jsdelivrはCORS対応）
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 export interface PDFData {
   pdf: pdfjsLib.PDFDocumentProxy;
@@ -43,10 +43,11 @@ export async function loadPDF(file: File): Promise<PDFData> {
     pdf = await pdfjsLib.getDocument({
       data: arrayBuffer,
       // 日本語フォント（CIDフォント）を正しくレンダリングするためのCMap設定
-      cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`,
+      // jsdelivrはCORSヘッダーを正しく設定している
+      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
       cMapPacked: true,
       // 標準フォントのフォールバック
-      standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/standard_fonts/`,
+      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
       // フォントが埋め込まれていないPDF対策
       disableFontFace: false,
       // システムフォントを使用（埋め込みフォントがない場合のフォールバック）
