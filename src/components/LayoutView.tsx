@@ -22,6 +22,9 @@ import {
   AlignStartHorizontal,
   Equal,
   Type,
+  Square,
+  Circle,
+  Minus,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { SnippetList } from './SnippetList';
@@ -63,6 +66,7 @@ export function LayoutView() {
     addTextElement,
     updateTextElement,
     selectedTextId,
+    addShapeElement,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -91,6 +95,9 @@ export function LayoutView() {
   const activePage = activeFile?.pages.find((p) => p.pageNumber === activePageNumber);
   const activeLayout = layoutPages.find((p) => p.id === activeLayoutPageId);
   const reCropSnippet = snippets.find((s) => s.id === reCropSnippetId);
+  // 再トリミング時は元のページ画像を取得
+  const reCropSourceFile = reCropSnippet ? files.find((f) => f.id === reCropSnippet.sourceFileId) : null;
+  const reCropSourcePage = reCropSourceFile?.pages.find((p) => p.pageNumber === reCropSnippet?.sourcePageNumber);
   const selectedPlacedSnippet = activeLayout?.snippets.find(
     (snippet) => snippet.snippetId === selectedSnippetId
   );
@@ -141,7 +148,8 @@ export function LayoutView() {
 
   // トリミング画像の読み込みとサイズ取得
   useEffect(() => {
-    const imageData = reCropSnippet?.imageData || activePage?.imageData;
+    // 再トリミング時は元のページ画像を使用
+    const imageData = reCropSourcePage?.imageData || activePage?.imageData;
     if (!imageData) {
       setCropImageSize(null);
       return;
@@ -152,7 +160,7 @@ export function LayoutView() {
       setCropImageSize({ width: img.width, height: img.height });
     };
     img.src = imageData;
-  }, [activePage?.imageData, reCropSnippet?.imageData]);
+  }, [activePage?.imageData, reCropSourcePage?.imageData]);
 
   // トリミング画像サイズ変更時に自動フィット
   useEffect(() => {
@@ -417,11 +425,49 @@ export function LayoutView() {
               テキスト
             </button>
 
+            {/* 図形追加ボタン */}
+            <button
+              className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => {
+                if (activeLayoutPageId) {
+                  addShapeElement(activeLayoutPageId, 'rectangle', { x: 50, y: 50 });
+                }
+              }}
+              disabled={!activeLayoutPageId}
+              title="四角形を追加"
+            >
+              <Square className="w-4 h-4" />
+            </button>
+            <button
+              className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => {
+                if (activeLayoutPageId) {
+                  addShapeElement(activeLayoutPageId, 'circle', { x: 50, y: 50 });
+                }
+              }}
+              disabled={!activeLayoutPageId}
+              title="円を追加"
+            >
+              <Circle className="w-4 h-4" />
+            </button>
+            <button
+              className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => {
+                if (activeLayoutPageId) {
+                  addShapeElement(activeLayoutPageId, 'line', { x: 50, y: 50 });
+                }
+              }}
+              disabled={!activeLayoutPageId}
+              title="線を追加"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+
             <div className="w-px h-6 bg-gray-200" />
           </>
         )}
 
-        {/* P3-005: グリッド/ガイド表示 */}
+        {/* P3-005: グリッド表示 */}
         <button
           className={`toolbar-button ${settings.showGrid ? 'active' : ''}`}
           onClick={() => updateSettings({ showGrid: !settings.showGrid })}
@@ -429,16 +475,6 @@ export function LayoutView() {
         >
           <Grid className="w-5 h-5" />
         </button>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={settings.snapToGrid}
-            onChange={(e) => updateSettings({ snapToGrid: e.target.checked })}
-            className="rounded"
-          />
-          スナップ
-        </label>
 
         {mode === 'layout' && (
           <>
@@ -621,7 +657,7 @@ export function LayoutView() {
                       再トリミングモード
                     </span>
                     <span className="text-green-600 text-sm">
-                      （スニペットをさらにトリミング）
+                      （元のページから再トリミング → 配置済みも更新）
                     </span>
                   </div>
                   <button
@@ -631,17 +667,24 @@ export function LayoutView() {
                     キャンセル
                   </button>
                 </div>
-                <CropTool
-                  imageData={reCropSnippet.imageData}
-                  sourceFileId={reCropSnippet.sourceFileId}
-                  sourcePageNumber={reCropSnippet.sourcePageNumber}
-                  zoom={zoom}
-                  templateScope={templateScope}
-                  templateToApply={pendingTemplate}
-                  onTemplateApplied={() => setPendingTemplate(null)}
-                  batchMode={false}
-                  onCropComplete={() => setReCropSnippet(null)}
-                />
+                {reCropSourcePage?.imageData ? (
+                  <CropTool
+                    imageData={reCropSourcePage.imageData}
+                    sourceFileId={reCropSnippet.sourceFileId}
+                    sourcePageNumber={reCropSnippet.sourcePageNumber}
+                    zoom={zoom}
+                    templateScope={templateScope}
+                    templateToApply={pendingTemplate}
+                    onTemplateApplied={() => setPendingTemplate(null)}
+                    batchMode={false}
+                    onCropComplete={() => setReCropSnippet(null)}
+                    updateSnippetId={reCropSnippetId}
+                  />
+                ) : (
+                  <div className="text-center text-red-500 py-4">
+                    元のページ画像が見つかりません。PDFファイルを再度読み込んでください。
+                  </div>
+                )}
               </div>
             ) : activePage?.imageData ? (
               <div className="space-y-2">
@@ -723,7 +766,6 @@ export function LayoutView() {
                   zoom={zoom}
                   showGrid={settings.showGrid}
                   gridSize={settings.gridSize}
-                  snapToGrid={settings.snapToGrid}
                 />
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">

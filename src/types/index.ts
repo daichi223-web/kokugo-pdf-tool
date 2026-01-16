@@ -59,6 +59,7 @@ export interface Snippet {
   sourceFileId: string;
   sourcePageNumber: number;
   cropArea: CropArea;
+  cropZoom: number;  // トリミング時のズーム値（配置時の補正に使用）
   imageData: string; // Base64 encoded image
   createdAt: Date;
 }
@@ -77,6 +78,7 @@ export interface LayoutPage {
   orientation: PaperOrientation;
   snippets: PlacedSnippet[];
   textElements: TextElement[];
+  shapeElements: ShapeElement[];
 }
 
 export interface PlacedSnippet {
@@ -97,6 +99,19 @@ export interface TextElement {
   color: string;
   writingMode: 'horizontal' | 'vertical';  // 横書き or 縦書き
   textAlign: 'left' | 'center' | 'right';
+}
+
+// 図形要素の型
+export type ShapeType = 'rectangle' | 'circle' | 'line';
+
+export interface ShapeElement {
+  id: string;
+  shapeType: ShapeType;
+  position: Position;
+  size: Size;
+  strokeColor: string;
+  strokeWidth: number;
+  fillColor: string;  // 'transparent' for no fill
 }
 
 export interface Position {
@@ -185,6 +200,7 @@ export interface AppState {
   selectedSnippetIds: string[];  // 配置済みスニペットの複数選択用
   selectedPageNumbers: number[];  // 複数ページ選択用
   selectedTextId: string | null;  // 選択中のテキスト要素
+  selectedShapeId: string | null;  // 選択中の図形要素
 }
 
 // アクション型
@@ -203,6 +219,7 @@ export interface AppActions {
 
   // スニペット操作
   addSnippet: (snippet: Omit<Snippet, 'id' | 'createdAt'>) => void;
+  updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => void;
   removeSnippet: (snippetId: string) => void;
 
   // レイアウト操作
@@ -227,6 +244,7 @@ export interface AppActions {
   setActiveTab: (tab: 'extract' | 'layout') => void;
   setSelectedSnippet: (snippetId: string | null) => void;
   setSelectedTextId: (textId: string | null) => void;
+  setSelectedShapeId: (shapeId: string | null) => void;
   setProgress: (progress: ProgressInfo | null) => void;
 
   // ページ複数選択操作
@@ -251,4 +269,9 @@ export interface AppActions {
   addTextElement: (pageId: string, position: Position) => void;
   updateTextElement: (pageId: string, textId: string, updates: Partial<TextElement>) => void;
   removeTextElement: (pageId: string, textId: string) => void;
+
+  // 図形要素操作
+  addShapeElement: (pageId: string, shapeType: ShapeType, position: Position) => void;
+  updateShapeElement: (pageId: string, shapeId: string, updates: Partial<ShapeElement>) => void;
+  removeShapeElement: (pageId: string, shapeId: string) => void;
 }

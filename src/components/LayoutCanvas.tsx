@@ -16,7 +16,6 @@ interface LayoutCanvasProps {
   zoom: number;
   showGrid: boolean;
   gridSize: number;
-  snapToGrid: boolean;
 }
 
 export function LayoutCanvas({
@@ -25,7 +24,6 @@ export function LayoutCanvas({
   zoom,
   showGrid,
   gridSize,
-  snapToGrid,
 }: LayoutCanvasProps) {
   const {
     updateSnippetPosition,
@@ -43,6 +41,10 @@ export function LayoutCanvas({
     removeTextElement,
     selectedTextId,
     setSelectedTextId,
+    updateShapeElement,
+    removeShapeElement,
+    selectedShapeId,
+    setSelectedShapeId,
   } = useAppStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -69,24 +71,22 @@ export function LayoutCanvas({
     startPosition: Position;
   } | null>(null);
 
+  // 図形要素用の状態
+  const [draggingShape, setDraggingShape] = useState<string | null>(null);
+  const [shapeDragOffset, setShapeDragOffset] = useState<Position>({ x: 0, y: 0 });
+  const [resizingShape, setResizingShape] = useState<{
+    shapeId: string;
+    handle: string;
+    startSize: { width: number; height: number };
+    startPos: Position;
+    startPosition: Position;
+  } | null>(null);
+
   const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
   const margin = 15; // 15mm余白
   const canvasWidth = mmToPx(paperSize.width, 96); // 96 DPI for screen
   const canvasHeight = mmToPx(paperSize.height, 96);
   const marginPx = mmToPx(margin, 96);
-
-  // スナップ処理
-  const snapPosition = useCallback(
-    (pos: Position): Position => {
-      if (!snapToGrid) return pos;
-      const gridPx = mmToPx(gridSize, 96);
-      return {
-        x: Math.round(pos.x / gridPx) * gridPx,
-        y: Math.round(pos.y / gridPx) * gridPx,
-      };
-    },
-    [snapToGrid, gridSize]
-  );
 
   // ドラッグ開始
   const handleDragStart = useCallback(
@@ -166,6 +166,10 @@ export function LayoutCanvas({
         let newX = leftEdge;
         let newY = topEdge;
 
+        // 角のリサイズはアスペクト比を保持、辺のリサイズは自由変形
+        const aspectRatio = startWidth / startHeight;
+        const isCorner = ['se', 'sw', 'ne', 'nw'].includes(resizing.handle);
+
         switch (resizing.handle) {
           case 'e':
             newWidth = startWidth + dx;
@@ -182,22 +186,43 @@ export function LayoutCanvas({
             newY = bottomEdge - newHeight;
             break;
           case 'se':
-            newWidth = startWidth + dx;
-            newHeight = startHeight + dy;
+            // アスペクト比保持：対角線方向の変化量を使用
+            if (Math.abs(dx) > Math.abs(dy)) {
+              newWidth = startWidth + dx;
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newHeight = startHeight + dy;
+              newWidth = newHeight * aspectRatio;
+            }
             break;
           case 'sw':
-            newWidth = startWidth - dx;
-            newHeight = startHeight + dy;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              newWidth = startWidth - dx;
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newHeight = startHeight + dy;
+              newWidth = newHeight * aspectRatio;
+            }
             newX = rightEdge - newWidth;
             break;
           case 'ne':
-            newWidth = startWidth + dx;
-            newHeight = startHeight - dy;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              newWidth = startWidth + dx;
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newHeight = startHeight - dy;
+              newWidth = newHeight * aspectRatio;
+            }
             newY = bottomEdge - newHeight;
             break;
           case 'nw':
-            newWidth = startWidth - dx;
-            newHeight = startHeight - dy;
+            if (Math.abs(dx) > Math.abs(dy)) {
+              newWidth = startWidth - dx;
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newHeight = startHeight - dy;
+              newWidth = newHeight * aspectRatio;
+            }
             newX = rightEdge - newWidth;
             newY = bottomEdge - newHeight;
             break;
@@ -205,31 +230,26 @@ export function LayoutCanvas({
             break;
         }
 
-        newWidth = Math.max(minSize, newWidth);
-        newHeight = Math.max(minSize, newHeight);
+        // 最小サイズの適用（角のリサイズはアスペクト比を維持）
+        if (isCorner) {
+          if (newWidth < minSize) {
+            newWidth = minSize;
+            newHeight = newWidth / aspectRatio;
+          }
+          if (newHeight < minSize) {
+            newHeight = minSize;
+            newWidth = newHeight * aspectRatio;
+          }
+        } else {
+          newWidth = Math.max(minSize, newWidth);
+          newHeight = Math.max(minSize, newHeight);
+        }
 
         if (resizing.handle.includes('w')) {
           newX = rightEdge - newWidth;
         }
         if (resizing.handle.includes('n')) {
           newY = bottomEdge - newHeight;
-        }
-
-        if (snapToGrid) {
-          const gridPx = mmToPx(gridSize, 96);
-          const snap = (value: number) => Math.round(value / gridPx) * gridPx;
-          const snappedWidth = Math.max(minSize, snap(newWidth));
-          const snappedHeight = Math.max(minSize, snap(newHeight));
-
-          if (resizing.handle.includes('w')) {
-            newX = rightEdge - snappedWidth;
-          }
-          if (resizing.handle.includes('n')) {
-            newY = bottomEdge - snappedHeight;
-          }
-
-          newWidth = snappedWidth;
-          newHeight = snappedHeight;
         }
 
         updateSnippetPosition(layoutPage.id, resizing.snippetId, {
@@ -245,10 +265,10 @@ export function LayoutCanvas({
 
       // ドラッグ処理
       if (dragging) {
-        const newPos = snapPosition({
+        const newPos = {
           x: (e.clientX - rect.left) / zoom - dragOffset.x,
           y: (e.clientY - rect.top) / zoom - dragOffset.y,
-        });
+        };
         updateSnippetPosition(layoutPage.id, dragging, newPos);
       }
     };
@@ -282,9 +302,6 @@ export function LayoutCanvas({
     dragOffset,
     resizing,
     zoom,
-    snapPosition,
-    snapToGrid,
-    gridSize,
     layoutPage.id,
     updateSnippetPosition,
     updateSnippetSize,
@@ -356,10 +373,10 @@ export function LayoutCanvas({
         const textElement = layoutPage.textElements?.find((t) => t.id === draggingText);
         if (!textElement) return;
 
-        const newPos = snapPosition({
+        const newPos = {
           x: (e.clientX - rect.left) / zoom - textDragOffset.x,
           y: (e.clientY - rect.top) / zoom - textDragOffset.y,
-        });
+        };
         updateTextElement(layoutPage.id, draggingText, { position: newPos });
       }
     };
@@ -379,7 +396,77 @@ export function LayoutCanvas({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingText, textDragOffset, resizingText, zoom, snapPosition, layoutPage.id, layoutPage.textElements, updateTextElement, pushLayoutHistory]);
+  }, [draggingText, textDragOffset, resizingText, zoom, layoutPage.id, layoutPage.textElements, updateTextElement, pushLayoutHistory]);
+
+  // 図形要素のドラッグ/リサイズ処理
+  useEffect(() => {
+    if (!draggingShape && !resizingShape) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+
+      if (resizingShape) {
+        const currentX = (e.clientX - rect.left) / zoom;
+        const currentY = (e.clientY - rect.top) / zoom;
+        const dx = currentX - resizingShape.startPos.x;
+        const dy = currentY - resizingShape.startPos.y;
+
+        const minSize = 10;
+        let newWidth = resizingShape.startSize.width;
+        let newHeight = resizingShape.startSize.height;
+        let newX = resizingShape.startPosition.x;
+        let newY = resizingShape.startPosition.y;
+
+        const rightEdge = resizingShape.startPosition.x + resizingShape.startSize.width;
+        const bottomEdge = resizingShape.startPosition.y + resizingShape.startSize.height;
+
+        switch (resizingShape.handle) {
+          case 'e': newWidth += dx; break;
+          case 'w': newWidth -= dx; newX = rightEdge - newWidth; break;
+          case 's': newHeight += dy; break;
+          case 'n': newHeight -= dy; newY = bottomEdge - newHeight; break;
+          case 'se': newWidth += dx; newHeight += dy; break;
+          case 'sw': newWidth -= dx; newHeight += dy; newX = rightEdge - newWidth; break;
+          case 'ne': newWidth += dx; newHeight -= dy; newY = bottomEdge - newHeight; break;
+          case 'nw': newWidth -= dx; newHeight -= dy; newX = rightEdge - newWidth; newY = bottomEdge - newHeight; break;
+        }
+
+        newWidth = Math.max(minSize, newWidth);
+        newHeight = Math.max(minSize, newHeight);
+
+        updateShapeElement(layoutPage.id, resizingShape.shapeId, {
+          position: { x: newX, y: newY },
+          size: { width: newWidth, height: newHeight },
+        });
+        return;
+      }
+
+      if (draggingShape) {
+        const newPos = {
+          x: (e.clientX - rect.left) / zoom - shapeDragOffset.x,
+          y: (e.clientY - rect.top) / zoom - shapeDragOffset.y,
+        };
+        updateShapeElement(layoutPage.id, draggingShape, { position: newPos });
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (draggingShape || resizingShape) {
+        pushLayoutHistory();
+      }
+      setDraggingShape(null);
+      setResizingShape(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingShape, shapeDragOffset, resizingShape, zoom, layoutPage.id, updateShapeElement, pushLayoutHistory]);
 
   // ドロップ受付
   const handleDrop = useCallback(
@@ -389,10 +476,10 @@ export function LayoutCanvas({
       if (!snippetId || !canvasRef.current) return;
 
       const rect = canvasRef.current.getBoundingClientRect();
-      const position = snapPosition({
+      const position = {
         x: (e.clientX - rect.left) / zoom - marginPx,
         y: (e.clientY - rect.top) / zoom - marginPx,
-      });
+      };
 
       // ドロップ直後フラグを設定（内部ドラッグの誤発火を防ぐ）
       setJustDropped(true);
@@ -400,7 +487,7 @@ export function LayoutCanvas({
 
       addSnippetToLayout(layoutPage.id, snippetId, position);
     },
-    [zoom, marginPx, snapPosition, layoutPage.id, addSnippetToLayout]
+    [zoom, marginPx, layoutPage.id, addSnippetToLayout]
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -426,6 +513,7 @@ export function LayoutCanvas({
       onClick={() => {
         setSelectedSnippet(null);
         setSelectedTextId(null);
+        setSelectedShapeId(null);
         clearPlacedSnippetSelection();
       }}
     >
@@ -548,7 +636,7 @@ export function LayoutCanvas({
             <img
               src={snippet.imageData}
               alt="Snippet"
-              className="w-full h-full object-fill"
+              className="w-full h-full object-contain"
               draggable={false}
             />
 
@@ -740,8 +828,153 @@ export function LayoutCanvas({
         );
       })}
 
+      {/* 図形要素 */}
+      {layoutPage.shapeElements?.map((shape) => {
+        const isSelected = selectedShapeId === shape.id;
+
+        return (
+          <div
+            key={shape.id}
+            className={`absolute ${isSelected ? 'ring-2 ring-purple-500' : ''} cursor-move`}
+            style={{
+              left: (marginPx + shape.position.x) * zoom,
+              top: (marginPx + shape.position.y) * zoom,
+              width: shape.size.width * zoom,
+              height: shape.size.height * zoom,
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (e.button !== 0) return;
+
+              const rect = canvasRef.current?.getBoundingClientRect();
+              if (!rect) return;
+
+              setSelectedShapeId(shape.id);
+              setSelectedSnippet(null);
+              setSelectedTextId(null);
+              clearPlacedSnippetSelection();
+              setDraggingShape(shape.id);
+              setShapeDragOffset({
+                x: (e.clientX - rect.left) / zoom - shape.position.x,
+                y: (e.clientY - rect.top) / zoom - shape.position.y,
+              });
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedShapeId(shape.id);
+              setSelectedSnippet(null);
+              setSelectedTextId(null);
+              clearPlacedSnippetSelection();
+            }}
+          >
+            {/* 図形の描画 */}
+            <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
+              {shape.shapeType === 'rectangle' && (
+                <rect
+                  x={shape.strokeWidth / 2}
+                  y={shape.strokeWidth / 2}
+                  width={shape.size.width * zoom - shape.strokeWidth}
+                  height={shape.size.height * zoom - shape.strokeWidth}
+                  fill={shape.fillColor}
+                  stroke={shape.strokeColor}
+                  strokeWidth={shape.strokeWidth}
+                />
+              )}
+              {shape.shapeType === 'circle' && (
+                <ellipse
+                  cx={shape.size.width * zoom / 2}
+                  cy={shape.size.height * zoom / 2}
+                  rx={shape.size.width * zoom / 2 - shape.strokeWidth / 2}
+                  ry={shape.size.height * zoom / 2 - shape.strokeWidth / 2}
+                  fill={shape.fillColor}
+                  stroke={shape.strokeColor}
+                  strokeWidth={shape.strokeWidth}
+                />
+              )}
+              {shape.shapeType === 'line' && (
+                <line
+                  x1={0}
+                  y1={shape.size.height * zoom / 2}
+                  x2={shape.size.width * zoom}
+                  y2={shape.size.height * zoom / 2}
+                  stroke={shape.strokeColor}
+                  strokeWidth={shape.strokeWidth}
+                />
+              )}
+            </svg>
+
+            {/* リサイズハンドルと削除ボタン */}
+            {isSelected && (
+              <>
+                {/* 4隅 */}
+                <div className="snippet-handle cursor-nwse-resize bg-purple-500" style={{ left: -8, top: -8 }} onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const rect = canvasRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setResizingShape({
+                    shapeId: shape.id,
+                    handle: 'nw',
+                    startSize: { ...shape.size },
+                    startPos: { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom },
+                    startPosition: { ...shape.position },
+                  });
+                }} />
+                <div className="snippet-handle cursor-nesw-resize bg-purple-500" style={{ right: -8, top: -8 }} onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const rect = canvasRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setResizingShape({
+                    shapeId: shape.id,
+                    handle: 'ne',
+                    startSize: { ...shape.size },
+                    startPos: { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom },
+                    startPosition: { ...shape.position },
+                  });
+                }} />
+                <div className="snippet-handle cursor-nesw-resize bg-purple-500" style={{ left: -8, bottom: -8 }} onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const rect = canvasRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setResizingShape({
+                    shapeId: shape.id,
+                    handle: 'sw',
+                    startSize: { ...shape.size },
+                    startPos: { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom },
+                    startPosition: { ...shape.position },
+                  });
+                }} />
+                <div className="snippet-handle cursor-nwse-resize bg-purple-500" style={{ right: -8, bottom: -8 }} onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const rect = canvasRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  setResizingShape({
+                    shapeId: shape.id,
+                    handle: 'se',
+                    startSize: { ...shape.size },
+                    startPos: { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom },
+                    startPosition: { ...shape.position },
+                  });
+                }} />
+                {/* 削除ボタン */}
+                <button
+                  className="absolute w-6 h-6 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 flex items-center justify-center"
+                  style={{ right: -12, top: -12, zIndex: 30 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeShapeElement(layoutPage.id, shape.id);
+                    setSelectedShapeId(null);
+                  }}
+                >
+                  ×
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })}
+
       {/* キャンバスが空の場合 */}
-      {layoutPage.snippets.length === 0 && (!layoutPage.textElements || layoutPage.textElements.length === 0) && (
+      {layoutPage.snippets.length === 0 && (!layoutPage.textElements || layoutPage.textElements.length === 0) && (!layoutPage.shapeElements || layoutPage.shapeElements.length === 0) && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-400 pointer-events-none">
           <div className="text-center">
             <p>スニペットをドラッグ&ドロップで配置</p>

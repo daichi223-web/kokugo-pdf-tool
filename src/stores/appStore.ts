@@ -21,6 +21,8 @@ import type {
   ProgressInfo,
   AppSettings,
   TextElement,
+  ShapeElement,
+  ShapeType,
 } from '../types';
 import { getPaperDimensions } from '../types';
 import { generateId, mmToPx } from '../utils/helpers';
@@ -81,6 +83,7 @@ export const useAppStore = create<Store>()(
       selectedSnippetIds: [],
       selectedPageNumbers: [],
       selectedTextId: null,
+      selectedShapeId: null,
       benchmarkResult: null,
       isBenchmarkMode: false,
       layoutHistory: [],
@@ -423,6 +426,14 @@ export const useAppStore = create<Store>()(
         set((state) => ({ snippets: [...state.snippets, newSnippet] }));
       },
 
+      updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => {
+        set((state) => ({
+          snippets: state.snippets.map((s) =>
+            s.id === snippetId ? { ...s, ...updates } : s
+          ),
+        }));
+      },
+
       removeSnippet: (snippetId: string) => {
         set((state) => ({
           snippets: state.snippets.filter((s) => s.id !== snippetId),
@@ -443,6 +454,7 @@ export const useAppStore = create<Store>()(
           orientation,
           snippets: [],
           textElements: [],
+          shapeElements: [],
         };
         set((state) => ({
           layoutPages: [...state.layoutPages, newPage],
@@ -468,8 +480,13 @@ export const useAppStore = create<Store>()(
 
         const snippet = get().snippets.find((s) => s.id === snippetId);
         // トリミングサイズを初期サイズとして使用
+        // cropZoomで補正：トリミング時にユーザーが見ていた実際のサイズを使用
+        const cropZoom = snippet?.cropZoom || 1;
         const initialSize = snippet
-          ? { width: snippet.cropArea.width, height: snippet.cropArea.height }
+          ? {
+              width: snippet.cropArea.width * cropZoom,
+              height: snippet.cropArea.height * cropZoom
+            }
           : { width: 100, height: 100 };
 
         set((state) => ({
@@ -637,6 +654,10 @@ export const useAppStore = create<Store>()(
         set({ selectedTextId: textId });
       },
 
+      setSelectedShapeId: (shapeId) => {
+        set({ selectedShapeId: shapeId });
+      },
+
       // P1-009: プログレス表示
       setProgress: (progress: ProgressInfo | null) => {
         set({ progress });
@@ -781,8 +802,9 @@ export const useAppStore = create<Store>()(
 
           // セル内で中央配置
           const snippet = snippets.find((s) => s.id === placed.snippetId);
-          const snippetWidth = snippet ? snippet.cropArea.width : placed.size.width;
-          const snippetHeight = snippet ? snippet.cropArea.height : placed.size.height;
+          const cropZoom = snippet?.cropZoom || 1;
+          const snippetWidth = snippet ? snippet.cropArea.width * cropZoom : placed.size.width;
+          const snippetHeight = snippet ? snippet.cropArea.height * cropZoom : placed.size.height;
 
           // サイズをセルに収まるように調整
           const scale = Math.min(cellWidth / snippetWidth, cellHeight / snippetHeight, 1);
@@ -1081,6 +1103,55 @@ export const useAppStore = create<Store>()(
           layoutPages: state.layoutPages.map((page) =>
             page.id === pageId
               ? { ...page, textElements: page.textElements.filter((t) => t.id !== textId) }
+              : page
+          ),
+        }));
+      },
+
+      // 図形要素操作
+      addShapeElement: (pageId: string, shapeType: ShapeType, position: Position) => {
+        get().pushLayoutHistory();
+
+        const newShape: ShapeElement = {
+          id: generateId(),
+          shapeType,
+          position,
+          size: shapeType === 'line' ? { width: 100, height: 2 } : { width: 80, height: 80 },
+          strokeColor: '#000000',
+          strokeWidth: 2,
+          fillColor: 'transparent',
+        };
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, shapeElements: [...(page.shapeElements || []), newShape] }
+              : page
+          ),
+        }));
+      },
+
+      updateShapeElement: (pageId: string, shapeId: string, updates: Partial<ShapeElement>) => {
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  shapeElements: (page.shapeElements || []).map((s) =>
+                    s.id === shapeId ? { ...s, ...updates } : s
+                  ),
+                }
+              : page
+          ),
+        }));
+      },
+
+      removeShapeElement: (pageId: string, shapeId: string) => {
+        get().pushLayoutHistory();
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, shapeElements: (page.shapeElements || []).filter((s) => s.id !== shapeId) }
               : page
           ),
         }));

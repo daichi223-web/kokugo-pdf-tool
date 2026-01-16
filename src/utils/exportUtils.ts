@@ -8,7 +8,7 @@
 // =============================================================================
 
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import type { LayoutPage, Snippet, TextElement } from '../types';
@@ -182,6 +182,19 @@ export async function exportToPDF(
 
 
 /**
+ * 16進数カラーをRGBに変換（pdf-lib用）
+ */
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return null;
+  return {
+    r: parseInt(result[1], 16) / 255,
+    g: parseInt(result[2], 16) / 255,
+    b: parseInt(result[3], 16) / 255,
+  };
+}
+
+/**
  * テキスト要素をCanvas画像として描画
  * 縦書き・横書きに対応
  */
@@ -315,6 +328,80 @@ export async function exportLayoutToPDF(
           page.drawImage(image, { x, y, width, height });
         } catch (error) {
           console.error('Failed to embed text element:', error);
+        }
+      }
+    }
+
+    // 図形要素を描画
+    if (layoutPage.shapeElements) {
+      for (const shape of layoutPage.shapeElements) {
+        try {
+          const x = margin + shape.position.x * dpiRatio;
+          const width = shape.size.width * dpiRatio;
+          const height = shape.size.height * dpiRatio;
+          const y = pageHeight - margin - shape.position.y * dpiRatio - height;
+
+          const strokeColor = hexToRgb(shape.strokeColor);
+          const fillColor = shape.fillColor !== 'transparent' ? hexToRgb(shape.fillColor) : null;
+
+          if (shape.shapeType === 'rectangle') {
+            if (fillColor) {
+              page.drawRectangle({
+                x,
+                y,
+                width,
+                height,
+                color: rgb(fillColor.r, fillColor.g, fillColor.b),
+              });
+            }
+            if (strokeColor) {
+              page.drawRectangle({
+                x,
+                y,
+                width,
+                height,
+                borderColor: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                borderWidth: shape.strokeWidth * dpiRatio,
+              });
+            }
+          } else if (shape.shapeType === 'circle') {
+            const cx = x + width / 2;
+            const cy = y + height / 2;
+            const rx = width / 2;
+            const ry = height / 2;
+
+            if (fillColor) {
+              page.drawEllipse({
+                x: cx,
+                y: cy,
+                xScale: rx,
+                yScale: ry,
+                color: rgb(fillColor.r, fillColor.g, fillColor.b),
+              });
+            }
+            if (strokeColor) {
+              page.drawEllipse({
+                x: cx,
+                y: cy,
+                xScale: rx,
+                yScale: ry,
+                borderColor: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                borderWidth: shape.strokeWidth * dpiRatio,
+              });
+            }
+          } else if (shape.shapeType === 'line') {
+            if (strokeColor) {
+              const lineY = y + height / 2;
+              page.drawLine({
+                start: { x, y: lineY },
+                end: { x: x + width, y: lineY },
+                color: rgb(strokeColor.r, strokeColor.g, strokeColor.b),
+                thickness: shape.strokeWidth * dpiRatio,
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to draw shape element:', error);
         }
       }
     }

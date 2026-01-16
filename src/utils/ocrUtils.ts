@@ -40,7 +40,8 @@ async function getWorker(): Promise<Tesseract.Worker> {
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      worker = await Tesseract.createWorker('jpn_vert', 1, {
+      // 修正: 'jpn_vert' から 'jpn' に変更して、縦書き・横書き両方に対応
+      worker = await Tesseract.createWorker('jpn', 1, {
         logger: (m) => {
           if (m.status === 'recognizing text' && progressCallback) {
             progressCallback(Math.round(m.progress * 100));
@@ -48,9 +49,9 @@ async function getWorker(): Promise<Tesseract.Worker> {
         },
       });
 
-      // 縦書き日本語用の設定
+      // 修正: ページセグメンテーションモードを自動検出に変更
       await worker.setParameters({
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK_VERT_TEXT, // 縦書きテキストブロック
+        tessedit_pageseg_mode: Tesseract.PSM.AUTO, // 縦書き・横書きを自動検出
         preserve_interword_spaces: '1',
       });
 

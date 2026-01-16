@@ -26,6 +26,7 @@ interface CropToolProps {
   batchMode?: boolean;
   onBatchCrop?: (cropArea: CropArea) => void;
   onCropComplete?: () => void;
+  updateSnippetId?: string | null;  // 更新モード用：既存スニペットのID
 }
 
 type DragMode = 'none' | 'select' | 'move' | 'resize-nw' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w';
@@ -43,8 +44,9 @@ export function CropTool({
   batchMode = false,
   onBatchCrop,
   onCropComplete,
+  updateSnippetId,
 }: CropToolProps) {
-  const { addSnippet } = useAppStore();
+  const { addSnippet, updateSnippet } = useAppStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -350,11 +352,21 @@ export function CropTool({
     // BATCH-002: 一括モードの場合はonBatchCropを呼び出し
     if (batchMode && onBatchCrop) {
       onBatchCrop(selection);
+    } else if (updateSnippetId) {
+      // 更新モード：既存スニペットを更新
+      updateSnippet(updateSnippetId, {
+        sourceFileId,
+        sourcePageNumber,
+        cropArea: selection,
+        cropZoom: zoom,  // トリミング時のズーム値を保存
+        imageData: croppedImageData,
+      });
     } else {
       addSnippet({
         sourceFileId,
         sourcePageNumber,
         cropArea: selection,
+        cropZoom: zoom,  // トリミング時のズーム値を保存
         imageData: croppedImageData,
       });
     }
@@ -365,7 +377,7 @@ export function CropTool({
     if (onCropComplete) {
       onCropComplete();
     }
-  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, addSnippet, batchMode, onBatchCrop, onCropComplete]);
+  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, zoom, addSnippet, updateSnippet, updateSnippetId, batchMode, onBatchCrop, onCropComplete]);
 
   const handleCancel = useCallback(() => {
     setSelection(null);
