@@ -40,7 +40,14 @@ export async function loadPDF(file: File): Promise<PDFData> {
 
   let pdf: pdfjsLib.PDFDocumentProxy;
   try {
-    pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    pdf = await pdfjsLib.getDocument({
+      data: arrayBuffer,
+      // 日本語フォント（CIDフォント）を正しくレンダリングするためのCMap設定
+      cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/cmaps/`,
+      cMapPacked: true,
+      // 標準フォントのフォールバック
+      standardFontDataUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/standard_fonts/`,
+    }).promise;
   } catch (error) {
     throw new Error(`PDFの読み込みに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
   }
