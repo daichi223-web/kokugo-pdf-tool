@@ -5,6 +5,7 @@
 // =============================================================================
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { Crop } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { mmToPx, pxToMm } from '../utils/helpers';
 import type { LayoutPage, Snippet, Position } from '../types';
@@ -45,6 +46,7 @@ export function LayoutCanvas({
     removeShapeElement,
     selectedShapeId,
     setSelectedShapeId,
+    setReCropSnippet,
   } = useAppStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -653,14 +655,27 @@ export function LayoutCanvas({
                 <div className="snippet-handle cursor-ns-resize" style={{ left: '50%', bottom: -8, transform: 'translateX(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 's')} />
                 <div className="snippet-handle cursor-ew-resize" style={{ left: -8, top: '50%', transform: 'translateY(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'w')} />
                 <div className="snippet-handle cursor-ew-resize" style={{ right: -8, top: '50%', transform: 'translateY(-50%)' }} onMouseDown={(e) => handleResizeStart(e, placed.snippetId, 'e')} />
+                {/* 再トリミングボタン */}
+                <button
+                  className="absolute w-6 h-6 bg-green-500 text-white rounded-full hover:bg-green-600 flex items-center justify-center"
+                  style={{ right: -12, top: -12, zIndex: 30 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReCropSnippet(placed.snippetId);
+                  }}
+                  title="再トリミング"
+                >
+                  <Crop className="w-3 h-3" />
+                </button>
                 {/* 削除ボタン */}
                 <button
                   className="absolute w-6 h-6 bg-red-500 text-white rounded-full text-sm font-bold hover:bg-red-600 flex items-center justify-center"
-                  style={{ right: -12, top: -12, zIndex: 30 }}
+                  style={{ left: -12, top: -12, zIndex: 30 }}
                   onClick={(e) => {
                     e.stopPropagation();
                     removeSnippetFromLayout(layoutPage.id, placed.snippetId);
                   }}
+                  title="削除"
                 >
                   ×
                 </button>
