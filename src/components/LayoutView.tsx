@@ -265,12 +265,13 @@ export function LayoutView() {
           sourcePageNumber: pageNumber,
           cropArea,
           imageData: croppedImageData,
+          cropZoom, // 修正: cropZoomプロパティを追加
         });
       }
     } finally {
       setIsBatchProcessing(false);
     }
-  }, [activeFile, selectedPageNumbers, addSnippet]);
+  }, [activeFile, selectedPageNumbers, addSnippet, cropZoom]); // 修正: 依存配列にcropZoomを追加
 
   // PDF出力
   const handleExportPDF = useCallback(async () => {
