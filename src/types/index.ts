@@ -79,6 +79,7 @@ export interface LayoutPage {
   snippets: PlacedSnippet[];
   textElements: TextElement[];
   shapeElements: ShapeElement[];
+  margin?: number; // 余白（mm）、デフォルト15mm
 }
 
 export interface PlacedSnippet {
@@ -231,6 +232,7 @@ export interface AppActions {
   updateSnippetSize: (pageId: string, snippetId: string, size: Size) => void;
   applySnippetSizeToLayout: (pageId: string, size: Size) => void;
   removeSnippetFromLayout: (pageId: string, snippetId: string) => void;
+  updateLayoutPageMargin: (pageId: string, margin: number) => void;
 
   // エクスポート操作
   exportText: (fileId: string, format: ExportFormat) => Promise<void>;
@@ -264,6 +266,8 @@ export interface AppActions {
   alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => void;
   distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => void;
+  packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
+  adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => void;
 
   // テキスト要素操作
   addTextElement: (pageId: string, position: Position) => void;

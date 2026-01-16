@@ -572,6 +572,17 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // ページ余白の更新
+      updateLayoutPageMargin: (pageId: string, margin: number) => {
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, margin }
+              : page
+          ),
+        }));
+      },
+
       // エクスポート操作
       // P1-006: テキスト出力
       // P1-007: Markdown出力
@@ -772,7 +783,7 @@ export const useAppStore = create<Store>()(
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
-        const margin = mmToPx(15, 96);
+        const margin = mmToPx(page.margin ?? 15, 96); // ページ余白（デフォルト15mm）
 
         // 配置可能エリア
         const availableWidth = pageWidth - margin * 2;
@@ -846,7 +857,7 @@ export const useAppStore = create<Store>()(
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
-        const margin = mmToPx(15, 96);
+        const margin = mmToPx(page.margin ?? 15, 96); // ページ余白（デフォルト15mm）
 
         // 配置可能エリア（間隔分を引く）
         const totalGapX = gapX * (cols - 1);
@@ -1086,6 +1097,124 @@ export const useAppStore = create<Store>()(
             ),
           }));
         }
+      },
+
+      // 端をぴったりくっつける（選択したスニペットを隙間なく並べる）
+      packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => {
+        const { layoutPages, selectedSnippetIds } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || selectedSnippetIds.length < 2) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        const selectedPlaced = page.snippets
+          .filter((s) => selectedSnippetIds.includes(s.snippetId))
+          .sort((a, b) =>
+            direction === 'horizontal'
+              ? a.position.x - b.position.x
+              : a.position.y - b.position.y
+          );
+
+        // 最初のスニペットの位置を基準に、隙間なく並べる
+        const positionMap = new Map<string, { x: number; y: number }>();
+
+        if (direction === 'horizontal') {
+          let currentX = selectedPlaced[0].position.x;
+          selectedPlaced.forEach((s) => {
+            positionMap.set(s.snippetId, { x: currentX, y: s.position.y });
+            currentX += s.size.width; // 隙間なし
+          });
+        } else {
+          let currentY = selectedPlaced[0].position.y;
+          selectedPlaced.forEach((s) => {
+            positionMap.set(s.snippetId, { x: s.position.x, y: currentY });
+            currentY += s.size.height; // 隙間なし
+          });
+        }
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  snippets: p.snippets.map((s) => {
+                    const newPos = positionMap.get(s.snippetId);
+                    return newPos ? { ...s, position: newPos } : s;
+                  }),
+                }
+              : p
+          ),
+        }));
+      },
+
+      // ページ内のスニペットに間隔を適用
+      adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => {
+        const { layoutPages } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || page.snippets.length === 0) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        // 現在の配置からグリッド構造を推定
+        const snippets = [...page.snippets].sort((a, b) => {
+          // Y座標でグループ化し、同じ行内ではX座標でソート
+          const rowDiff = Math.round(a.position.y / 50) - Math.round(b.position.y / 50);
+          if (rowDiff !== 0) return rowDiff;
+          return a.position.x - b.position.x;
+        });
+
+        if (snippets.length === 0) return;
+
+        // 行ごとにグループ化
+        const rows: typeof snippets[] = [];
+        let currentRow: typeof snippets = [];
+        let lastY = snippets[0].position.y;
+
+        snippets.forEach((s) => {
+          if (Math.abs(s.position.y - lastY) > 30) {
+            if (currentRow.length > 0) rows.push(currentRow);
+            currentRow = [s];
+            lastY = s.position.y;
+          } else {
+            currentRow.push(s);
+          }
+        });
+        if (currentRow.length > 0) rows.push(currentRow);
+
+        // 各行内で間隔を適用
+        const positionMap = new Map<string, { x: number; y: number }>();
+        let currentY = rows[0]?.[0]?.position.y ?? 0;
+
+        rows.forEach((row) => {
+          // 行内を右から左に並べ直す（X座標でソート）
+          row.sort((a, b) => a.position.x - b.position.x);
+
+          let currentX = row[0]?.position.x ?? 0;
+          row.forEach((s) => {
+            positionMap.set(s.snippetId, { x: currentX, y: currentY });
+            currentX += s.size.width + gapX;
+          });
+
+          // 次の行のY位置を計算
+          const maxHeight = Math.max(...row.map((s) => s.size.height));
+          currentY += maxHeight + gapY;
+        });
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  snippets: p.snippets.map((s) => {
+                    const newPos = positionMap.get(s.snippetId);
+                    return newPos ? { ...s, position: newPos } : s;
+                  }),
+                }
+              : p
+          ),
+        }));
       },
 
       // サイズ統一

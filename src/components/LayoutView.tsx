@@ -25,6 +25,12 @@ import {
   Square,
   Circle,
   Minus,
+  ArrowRightToLine,
+  ArrowDownToLine,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { SnippetList } from './SnippetList';
@@ -67,12 +73,17 @@ export function LayoutView() {
     updateTextElement,
     selectedTextId,
     addShapeElement,
+    packSnippets,
+    adjustPageSnippetsGap,
+    updateLayoutPageMargin,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
   const [cropZoom, setCropZoom] = useState(1);
   const [mode, setMode] = useState<'crop' | 'layout'>('crop');
   const [layoutViewMode, setLayoutViewMode] = useState<'tab' | 'continuous'>('continuous'); // 連続表示がデフォルト
+  const [pageGapX, setPageGapX] = useState(0); // ページ内間隔調整（横）
+  const [pageGapY, setPageGapY] = useState(0); // ページ内間隔調整（縦）
 
   // 現在のモードに応じたズーム値
   const zoom = mode === 'layout' ? layoutZoom : cropZoom;
@@ -183,6 +194,13 @@ export function LayoutView() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [mode, calculateLayoutFitZoom, calculateCropFitZoom]);
+
+  // 再トリミングモード開始時に自動でトリミングモードに切り替え
+  useEffect(() => {
+    if (reCropSnippetId) {
+      setMode('crop');
+    }
+  }, [reCropSnippetId]);
 
   const handleAddPage = () => {
     addLayoutPage(newPageSize, newPageOrientation);
@@ -466,6 +484,36 @@ export function LayoutView() {
             </button>
 
             <div className="w-px h-6 bg-gray-200" />
+
+            {/* ページ余白調整 */}
+            {activeLayout && (
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-gray-500">余白:</span>
+                <button
+                  className="p-0.5 border rounded hover:bg-gray-100"
+                  onClick={() => {
+                    const current = activeLayout.margin ?? 15;
+                    updateLayoutPageMargin(activeLayout.id, Math.max(0, current - 5));
+                  }}
+                  title="余白を狭める"
+                >
+                  <ChevronLeft className="w-3 h-3" />
+                </button>
+                <span className="w-8 text-center">{activeLayout.margin ?? 15}mm</span>
+                <button
+                  className="p-0.5 border rounded hover:bg-gray-100"
+                  onClick={() => {
+                    const current = activeLayout.margin ?? 15;
+                    updateLayoutPageMargin(activeLayout.id, current + 5);
+                  }}
+                  title="余白を広げる"
+                >
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
+            <div className="w-px h-6 bg-gray-200" />
           </>
         )}
 
@@ -583,6 +631,89 @@ export function LayoutView() {
               >
                 <Equal className="w-3 h-3" />
                 幅統一
+              </button>
+            </div>
+
+            <div className="w-px h-6 bg-gray-200" />
+
+            {/* 端をくっつけるボタン */}
+            <div className="flex items-center gap-1">
+              <button
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 bg-purple-50 border-purple-300"
+                onClick={() => packSnippets(activeLayout.id, 'horizontal')}
+                title="横方向に隙間なく並べる"
+              >
+                <ArrowRightToLine className="w-3 h-3" />
+                横くっつけ
+              </button>
+              <button
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 bg-purple-50 border-purple-300"
+                onClick={() => packSnippets(activeLayout.id, 'vertical')}
+                title="縦方向に隙間なく並べる"
+              >
+                <ArrowDownToLine className="w-3 h-3" />
+                縦くっつけ
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ページ内間隔調整（配置モードでページが選択されている時） */}
+        {mode === 'layout' && activeLayout && activeLayout.snippets.length > 0 && (
+          <>
+            <div className="w-px h-6 bg-gray-200" />
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-gray-500">間隔:</span>
+              {/* 横間隔 */}
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => {
+                  const newGapX = Math.max(0, pageGapX - 10);
+                  setPageGapX(newGapX);
+                  adjustPageSnippetsGap(activeLayout.id, newGapX, pageGapY);
+                }}
+                title="横間隔を狭める"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="w-6 text-center">{pageGapX}</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => {
+                  const newGapX = pageGapX + 10;
+                  setPageGapX(newGapX);
+                  adjustPageSnippetsGap(activeLayout.id, newGapX, pageGapY);
+                }}
+                title="横間隔を広げる"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+
+              <span className="mx-1 text-gray-300">|</span>
+
+              {/* 縦間隔 */}
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => {
+                  const newGapY = Math.max(0, pageGapY - 10);
+                  setPageGapY(newGapY);
+                  adjustPageSnippetsGap(activeLayout.id, pageGapX, newGapY);
+                }}
+                title="縦間隔を狭める"
+              >
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <span className="w-6 text-center">{pageGapY}</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => {
+                  const newGapY = pageGapY + 10;
+                  setPageGapY(newGapY);
+                  adjustPageSnippetsGap(activeLayout.id, pageGapX, newGapY);
+                }}
+                title="縦間隔を広げる"
+              >
+                <ChevronDown className="w-3 h-3" />
               </button>
             </div>
           </>
