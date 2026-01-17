@@ -1290,7 +1290,8 @@ export const useAppStore = create<Store>()(
       },
 
       // 全スニペットを詰め直す（トリミング後の再配置用）
-      repackAllSnippets: (pageId: string) => {
+      // basis: 'right-top' = 縦書き用（右上基準）, 'left-top' = 横書き用（左上基準）
+      repackAllSnippets: (pageId: string, basis: 'right-top' | 'left-top') => {
         const { layoutPages } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || page.snippets.length === 0) return;
@@ -1298,14 +1299,19 @@ export const useAppStore = create<Store>()(
         // Undo用に履歴を保存
         get().pushLayoutHistory();
 
-        // 余白を取得
+        // 用紙サイズと余白を取得
+        const paperDimensions = getPaperDimensions(page.paperSize, page.orientation);
         const margin = mmToPx(page.margin ?? 15, 96);
+        const paperWidthPx = mmToPx(paperDimensions.width, 96);
 
         // 現在の配置からグリッド構造を推定
         const snippets = [...page.snippets].sort((a, b) => {
           const rowDiff = Math.round(a.position.y / 50) - Math.round(b.position.y / 50);
           if (rowDiff !== 0) return rowDiff;
-          return a.position.x - b.position.x;
+          // 右上基準の場合は右から左へ、左上基準の場合は左から右へソート
+          return basis === 'right-top'
+            ? b.position.x - a.position.x  // 右から左
+            : a.position.x - b.position.x; // 左から右
         });
 
         // 行ごとにグループ化
@@ -1329,13 +1335,23 @@ export const useAppStore = create<Store>()(
         let currentY = margin; // 上余白から開始
 
         rows.forEach((row) => {
-          row.sort((a, b) => a.position.x - b.position.x);
-
-          let currentX = margin; // 左余白から開始
-          row.forEach((s) => {
-            positionMap.set(s.snippetId, { x: currentX, y: currentY });
-            currentX += s.size.width; // 隙間なし
-          });
+          if (basis === 'right-top') {
+            // 右上基準：右余白から左に向かって配置
+            row.sort((a, b) => b.position.x - a.position.x); // 右から順に
+            let currentX = paperWidthPx - margin; // 右余白位置
+            row.forEach((s) => {
+              currentX -= s.size.width; // 左に進む
+              positionMap.set(s.snippetId, { x: currentX, y: currentY });
+            });
+          } else {
+            // 左上基準：左余白から右に向かって配置
+            row.sort((a, b) => a.position.x - b.position.x); // 左から順に
+            let currentX = margin; // 左余白位置
+            row.forEach((s) => {
+              positionMap.set(s.snippetId, { x: currentX, y: currentY });
+              currentX += s.size.width; // 右に進む
+            });
+          }
 
           // 次の行のY位置 = この行の最大高さ
           const maxHeight = Math.max(...row.map((s) => s.size.height));

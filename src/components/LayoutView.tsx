@@ -763,12 +763,20 @@ export function LayoutView() {
                 <ChevronDown className="w-3 h-3" />
               </button>
               <span className="mx-1 text-gray-300">|</span>
+              <span className="text-xs text-gray-500">全詰:</span>
+              <button
+                className="px-2 py-0.5 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
+                onClick={() => repackAllSnippets(activeLayout.id, 'right-top')}
+                title="右上基準で詰める（縦書き用）"
+              >
+                右上
+              </button>
               <button
                 className="px-2 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                onClick={() => repackAllSnippets(activeLayout.id)}
-                title="全スニペットを隙間なく詰め直す"
+                onClick={() => repackAllSnippets(activeLayout.id, 'left-top')}
+                title="左上基準で詰める（横書き用）"
               >
-                全詰め
+                左上
               </button>
             </div>
           </>
