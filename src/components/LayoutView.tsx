@@ -795,7 +795,10 @@ export function LayoutView() {
                   </div>
                   <button
                     className="px-2 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300"
-                    onClick={() => setReCropSnippet(null)}
+                    onClick={() => {
+                      setReCropSnippet(null);
+                      setMode('layout'); // キャンセル時も配置モードに戻る
+                    }}
                   >
                     キャンセル
                   </button>
@@ -810,7 +813,10 @@ export function LayoutView() {
                     templateToApply={pendingTemplate}
                     onTemplateApplied={() => setPendingTemplate(null)}
                     batchMode={false}
-                    onCropComplete={() => setReCropSnippet(null)}
+                    onCropComplete={() => {
+                      setReCropSnippet(null);
+                      setMode('layout'); // 再トリミング完了後、配置モードに戻る
+                    }}
                     updateSnippetId={reCropSnippetId}
                   />
                 ) : (

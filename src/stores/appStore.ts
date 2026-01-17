@@ -428,11 +428,31 @@ export const useAppStore = create<Store>()(
       },
 
       updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => {
-        set((state) => ({
-          snippets: state.snippets.map((s) =>
+        set((state) => {
+          // スニペットを更新
+          const newSnippets = state.snippets.map((s) =>
             s.id === snippetId ? { ...s, ...updates } : s
-          ),
-        }));
+          );
+
+          // cropAreaとcropZoomが更新された場合、配置済みスニペットのサイズも更新
+          let newLayoutPages = state.layoutPages;
+          if (updates.cropArea && updates.cropZoom) {
+            const newSize = {
+              width: updates.cropArea.width * updates.cropZoom,
+              height: updates.cropArea.height * updates.cropZoom,
+            };
+            newLayoutPages = state.layoutPages.map((page) => ({
+              ...page,
+              snippets: page.snippets.map((placed) =>
+                placed.snippetId === snippetId
+                  ? { ...placed, size: newSize }
+                  : placed
+              ),
+            }));
+          }
+
+          return { snippets: newSnippets, layoutPages: newLayoutPages };
+        });
       },
 
       removeSnippet: (snippetId: string) => {
