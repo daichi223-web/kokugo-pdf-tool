@@ -82,6 +82,8 @@ export function LayoutView() {
     updateLayoutPageMarginX,
     updateLayoutPageMarginY,
     repackAllSnippets,
+    repackAcrossPages,
+    unifyAllPagesSnippetSize,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -800,6 +802,22 @@ export function LayoutView() {
                 title="左上基準で詰める（横書き用）"
               >
                 左上
+              </button>
+              <span className="mx-1 text-gray-300">|</span>
+              <span className="text-xs text-gray-500">全ページ:</span>
+              <button
+                className="px-2 py-0.5 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
+                onClick={() => repackAcrossPages('right-top')}
+                title="全ページを跨いで詰め直す（A3横・余白15mm）"
+              >
+                詰め
+              </button>
+              <button
+                className="px-2 py-0.5 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+                onClick={() => unifyAllPagesSnippetSize()}
+                title="全ページのサイズを統一（1ページ目基準）"
+              >
+                サイズ
               </button>
             </div>
           </>

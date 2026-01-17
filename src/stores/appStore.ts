@@ -1405,6 +1405,150 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // 全ページを跨いで詰め直す
+      // A3横、余白15mmで全スニペットを詰め直し、空ページは削除
+      repackAcrossPages: (basis: 'right-top' | 'left-top') => {
+        const { layoutPages, snippets: allSnippets } = get();
+        if (layoutPages.length === 0) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        // 全ページからスニペットを収集
+        const allPlacedSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
+        layoutPages.forEach((page) => {
+          page.snippets.forEach((placed) => {
+            allPlacedSnippets.push({ ...placed });
+          });
+        });
+
+        if (allPlacedSnippets.length === 0) return;
+
+        // ID順にソート
+        const snippetOrder = new Map<string, number>();
+        allSnippets.forEach((s, index) => {
+          snippetOrder.set(s.id, index);
+        });
+        allPlacedSnippets.sort((a, b) => {
+          const orderA = snippetOrder.get(a.snippetId) ?? 0;
+          const orderB = snippetOrder.get(b.snippetId) ?? 0;
+          return orderA - orderB;
+        });
+
+        // 用紙設定: A3横、余白15mm
+        const paperSize = getPaperDimensions('A3', 'landscape');
+        const marginX = mmToPx(15, 96);
+        const marginY = mmToPx(15, 96);
+        const paperWidthPx = mmToPx(paperSize.width, 96);
+        const paperHeightPx = mmToPx(paperSize.height, 96);
+        const availableWidth = paperWidthPx - marginX * 2;
+        const availableHeight = paperHeightPx - marginY * 2;
+
+        // ページごとにスニペットを振り分け
+        const pagesData: { snippets: { snippetId: string; size: Size; position: Position; rotation: number }[] }[] = [];
+        let currentPageSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
+        let currentY = 0;
+        let currentRowHeight = 0;
+        let currentRowUsedWidth = 0;
+
+        allPlacedSnippets.forEach((snippet) => {
+          const snipWidth = snippet.size.width;
+          const snipHeight = snippet.size.height;
+
+          // 現在の行に入るか確認
+          if (currentRowUsedWidth + snipWidth > availableWidth && currentRowUsedWidth > 0) {
+            currentY += currentRowHeight;
+            currentRowHeight = 0;
+            currentRowUsedWidth = 0;
+          }
+
+          // 現在のページに入るか確認
+          if (currentY + snipHeight > availableHeight) {
+            // 次のページへ
+            if (currentPageSnippets.length > 0) {
+              pagesData.push({ snippets: currentPageSnippets });
+            }
+            currentPageSnippets = [];
+            currentY = 0;
+            currentRowHeight = 0;
+            currentRowUsedWidth = 0;
+          }
+
+          // 配置位置を計算
+          let x: number;
+          if (basis === 'right-top') {
+            x = availableWidth - currentRowUsedWidth - snipWidth;
+          } else {
+            x = currentRowUsedWidth;
+          }
+
+          currentPageSnippets.push({
+            snippetId: snippet.snippetId,
+            size: snippet.size,
+            position: { x, y: currentY },
+            rotation: 0,
+          });
+
+          currentRowUsedWidth += snipWidth;
+          currentRowHeight = Math.max(currentRowHeight, snipHeight);
+        });
+
+        // 最後のページを追加
+        if (currentPageSnippets.length > 0) {
+          pagesData.push({ snippets: currentPageSnippets });
+        }
+
+        // 新しいページ構成を作成
+        const newLayoutPages: LayoutPage[] = pagesData.map((pageData, index) => ({
+          id: `page-${Date.now()}-${index}`,
+          paperSize: 'A3',
+          orientation: 'landscape',
+          snippets: pageData.snippets,
+          textElements: [],
+          shapeElements: [],
+          marginX: 15,
+          marginY: 15,
+        }));
+
+        set({
+          layoutPages: newLayoutPages,
+          activeLayoutPageId: newLayoutPages.length > 0 ? newLayoutPages[0].id : null,
+        });
+      },
+
+      // 全ページのスニペットサイズを統一（1ページ目基準、縦横比維持）
+      unifyAllPagesSnippetSize: () => {
+        const { layoutPages } = get();
+        if (layoutPages.length === 0) return;
+
+        const firstPage = layoutPages[0];
+        if (firstPage.snippets.length === 0) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        // 1ページ目の最初のスニペットのサイズを基準にする
+        const baseSnippet = firstPage.snippets[0];
+        const baseWidth = baseSnippet.size.width;
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) => ({
+            ...page,
+            snippets: page.snippets.map((s) => {
+              // 縦横比を維持してリサイズ
+              const aspectRatio = s.size.height / s.size.width;
+              return {
+                ...s,
+                size: {
+                  width: baseWidth,
+                  height: baseWidth * aspectRatio,
+                },
+              };
+            }),
+          })),
+        }));
+      },
+
       // サイズ統一
       unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => {
         const { layoutPages, selectedSnippetIds } = get();
