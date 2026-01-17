@@ -634,6 +634,11 @@ export function LayoutCanvas({
                 setSelectedSnippet(placed.snippetId);
               }
             }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              // ダブルクリックで再トリミングモードへ
+              setReCropSnippet(placed.snippetId);
+            }}
           >
             <img
               src={snippet.imageData}
