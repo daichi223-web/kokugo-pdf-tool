@@ -112,12 +112,13 @@ export function LayoutCanvas({
 
       setDragging(snippetId);
       setSelectedSnippet(snippetId);
+      // 余白を含めた表示位置からのオフセットを計算
       setDragOffset({
-        x: (e.clientX - rect.left) / zoom - placed.position.x,
-        y: (e.clientY - rect.top) / zoom - placed.position.y,
+        x: (e.clientX - rect.left) / zoom - marginXPx - placed.position.x,
+        y: (e.clientY - rect.top) / zoom - marginYPx - placed.position.y,
       });
     },
-    [layoutPage.snippets, zoom, setSelectedSnippet, justDropped]
+    [layoutPage.snippets, zoom, setSelectedSnippet, justDropped, marginXPx, marginYPx]
   );
 
   // リサイズ開始
@@ -270,9 +271,10 @@ export function LayoutCanvas({
 
       // ドラッグ処理
       if (dragging) {
+        // 余白を引いて、余白からの相対位置を計算
         const newPos = {
-          x: (e.clientX - rect.left) / zoom - dragOffset.x,
-          y: (e.clientY - rect.top) / zoom - dragOffset.y,
+          x: (e.clientX - rect.left) / zoom - marginXPx - dragOffset.x,
+          y: (e.clientY - rect.top) / zoom - marginYPx - dragOffset.y,
         };
         updateSnippetPosition(layoutPage.id, dragging, newPos);
       }
@@ -311,6 +313,8 @@ export function LayoutCanvas({
     updateSnippetPosition,
     updateSnippetSize,
     pushLayoutHistory,
+    marginXPx,
+    marginYPx,
   ]);
 
   // Ctrl+Z で Undo
@@ -379,8 +383,8 @@ export function LayoutCanvas({
         if (!textElement) return;
 
         const newPos = {
-          x: (e.clientX - rect.left) / zoom - textDragOffset.x,
-          y: (e.clientY - rect.top) / zoom - textDragOffset.y,
+          x: (e.clientX - rect.left) / zoom - marginXPx - textDragOffset.x,
+          y: (e.clientY - rect.top) / zoom - marginYPx - textDragOffset.y,
         };
         updateTextElement(layoutPage.id, draggingText, { position: newPos });
       }
@@ -401,7 +405,7 @@ export function LayoutCanvas({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingText, textDragOffset, resizingText, zoom, layoutPage.id, layoutPage.textElements, updateTextElement, pushLayoutHistory]);
+  }, [draggingText, textDragOffset, resizingText, zoom, layoutPage.id, layoutPage.textElements, updateTextElement, pushLayoutHistory, marginXPx, marginYPx]);
 
   // 図形要素のドラッグ/リサイズ処理
   useEffect(() => {
@@ -449,8 +453,8 @@ export function LayoutCanvas({
 
       if (draggingShape) {
         const newPos = {
-          x: (e.clientX - rect.left) / zoom - shapeDragOffset.x,
-          y: (e.clientY - rect.top) / zoom - shapeDragOffset.y,
+          x: (e.clientX - rect.left) / zoom - marginXPx - shapeDragOffset.x,
+          y: (e.clientY - rect.top) / zoom - marginYPx - shapeDragOffset.y,
         };
         updateShapeElement(layoutPage.id, draggingShape, { position: newPos });
       }
@@ -471,7 +475,7 @@ export function LayoutCanvas({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [draggingShape, shapeDragOffset, resizingShape, zoom, layoutPage.id, updateShapeElement, pushLayoutHistory]);
+  }, [draggingShape, shapeDragOffset, resizingShape, zoom, layoutPage.id, updateShapeElement, pushLayoutHistory, marginXPx, marginYPx]);
 
   // ドロップ受付
   const handleDrop = useCallback(
@@ -732,8 +736,8 @@ export function LayoutCanvas({
               clearPlacedSnippetSelection();
               setDraggingText(textElement.id);
               setTextDragOffset({
-                x: (e.clientX - rect.left) / zoom - textElement.position.x,
-                y: (e.clientY - rect.top) / zoom - textElement.position.y,
+                x: (e.clientX - rect.left) / zoom - marginXPx - textElement.position.x,
+                y: (e.clientY - rect.top) / zoom - marginYPx - textElement.position.y,
               });
             }}
             onDoubleClick={(e) => {
@@ -878,8 +882,8 @@ export function LayoutCanvas({
               clearPlacedSnippetSelection();
               setDraggingShape(shape.id);
               setShapeDragOffset({
-                x: (e.clientX - rect.left) / zoom - shape.position.x,
-                y: (e.clientY - rect.top) / zoom - shape.position.y,
+                x: (e.clientX - rect.left) / zoom - marginXPx - shape.position.x,
+                y: (e.clientY - rect.top) / zoom - marginYPx - shape.position.y,
               });
             }}
             onClick={(e) => {
