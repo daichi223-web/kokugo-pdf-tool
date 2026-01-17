@@ -270,6 +270,7 @@ export interface AppActions {
   unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => void;
   packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => void;
+  repackAllSnippets: (pageId: string) => void;
 
   // テキスト要素操作
   addTextElement: (pageId: string, position: Position) => void;

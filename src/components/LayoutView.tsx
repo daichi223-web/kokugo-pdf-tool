@@ -80,6 +80,7 @@ export function LayoutView() {
     packSnippets,
     adjustPageSnippetsGap,
     updateLayoutPageMargin,
+    repackAllSnippets,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -760,6 +761,14 @@ export function LayoutView() {
                 title="縦間隔を広げる"
               >
                 <ChevronDown className="w-3 h-3" />
+              </button>
+              <span className="mx-1 text-gray-300">|</span>
+              <button
+                className="px-2 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                onClick={() => repackAllSnippets(activeLayout.id)}
+                title="全スニペットを隙間なく詰め直す"
+              >
+                全詰め
               </button>
             </div>
           </>

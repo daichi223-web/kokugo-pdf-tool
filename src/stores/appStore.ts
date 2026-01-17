@@ -1289,6 +1289,74 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // 全スニペットを詰め直す（トリミング後の再配置用）
+      repackAllSnippets: (pageId: string) => {
+        const { layoutPages } = get();
+        const page = layoutPages.find((p) => p.id === pageId);
+        if (!page || page.snippets.length === 0) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        // 余白を取得
+        const margin = mmToPx(page.margin ?? 15, 96);
+
+        // 現在の配置からグリッド構造を推定
+        const snippets = [...page.snippets].sort((a, b) => {
+          const rowDiff = Math.round(a.position.y / 50) - Math.round(b.position.y / 50);
+          if (rowDiff !== 0) return rowDiff;
+          return a.position.x - b.position.x;
+        });
+
+        // 行ごとにグループ化
+        const rows: typeof snippets[] = [];
+        let currentRow: typeof snippets = [];
+        let lastY = snippets[0].position.y;
+
+        snippets.forEach((s) => {
+          if (Math.abs(s.position.y - lastY) > 30) {
+            if (currentRow.length > 0) rows.push(currentRow);
+            currentRow = [s];
+            lastY = s.position.y;
+          } else {
+            currentRow.push(s);
+          }
+        });
+        if (currentRow.length > 0) rows.push(currentRow);
+
+        // 各行内で隙間なく詰める
+        const positionMap = new Map<string, { x: number; y: number }>();
+        let currentY = margin; // 上余白から開始
+
+        rows.forEach((row) => {
+          row.sort((a, b) => a.position.x - b.position.x);
+
+          let currentX = margin; // 左余白から開始
+          row.forEach((s) => {
+            positionMap.set(s.snippetId, { x: currentX, y: currentY });
+            currentX += s.size.width; // 隙間なし
+          });
+
+          // 次の行のY位置 = この行の最大高さ
+          const maxHeight = Math.max(...row.map((s) => s.size.height));
+          currentY += maxHeight; // 隙間なし
+        });
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId
+              ? {
+                  ...p,
+                  snippets: p.snippets.map((s) => {
+                    const newPos = positionMap.get(s.snippetId);
+                    return newPos ? { ...s, position: newPos } : s;
+                  }),
+                }
+              : p
+          ),
+        }));
+      },
+
       // サイズ統一
       unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => {
         const { layoutPages, selectedSnippetIds } = get();
