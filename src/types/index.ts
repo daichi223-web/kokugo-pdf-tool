@@ -79,7 +79,9 @@ export interface LayoutPage {
   snippets: PlacedSnippet[];
   textElements: TextElement[];
   shapeElements: ShapeElement[];
-  margin?: number; // 余白（mm）、デフォルト15mm
+  margin?: number; // 余白（mm）、デフォルト15mm（後方互換用）
+  marginX?: number; // 左右余白（mm）、デフォルト15mm
+  marginY?: number; // 上下余白（mm）、デフォルト15mm
 }
 
 export interface PlacedSnippet {
@@ -235,6 +237,8 @@ export interface AppActions {
   applySnippetHeightToLayout: (pageId: string, targetHeight: number) => void;
   removeSnippetFromLayout: (pageId: string, snippetId: string) => void;
   updateLayoutPageMargin: (pageId: string, margin: number) => void;
+  updateLayoutPageMarginX: (pageId: string, marginX: number) => void;
+  updateLayoutPageMarginY: (pageId: string, marginY: number) => void;
 
   // エクスポート操作
   exportText: (fileId: string, format: ExportFormat) => Promise<void>;

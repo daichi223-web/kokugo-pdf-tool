@@ -79,7 +79,8 @@ export function LayoutView() {
     addShapeElement,
     packSnippets,
     adjustPageSnippetsGap,
-    updateLayoutPageMargin,
+    updateLayoutPageMarginX,
+    updateLayoutPageMarginY,
     repackAllSnippets,
   } = useAppStore();
 
@@ -493,27 +494,49 @@ export function LayoutView() {
             {/* ページ余白調整 */}
             {activeLayout && (
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-gray-500">余白:</span>
+                <span className="text-gray-500">左右:</span>
                 <button
                   className="p-0.5 border rounded hover:bg-gray-100"
                   onClick={() => {
-                    const current = activeLayout.margin ?? 15;
-                    updateLayoutPageMargin(activeLayout.id, Math.max(0, current - 5));
+                    const current = activeLayout.marginX ?? activeLayout.margin ?? 15;
+                    updateLayoutPageMarginX(activeLayout.id, Math.max(0, current - 5));
                   }}
-                  title="余白を狭める"
+                  title="左右余白を狭める"
                 >
                   <ChevronLeft className="w-3 h-3" />
                 </button>
-                <span className="w-8 text-center">{activeLayout.margin ?? 15}mm</span>
+                <span className="w-6 text-center">{activeLayout.marginX ?? activeLayout.margin ?? 15}</span>
                 <button
                   className="p-0.5 border rounded hover:bg-gray-100"
                   onClick={() => {
-                    const current = activeLayout.margin ?? 15;
-                    updateLayoutPageMargin(activeLayout.id, current + 5);
+                    const current = activeLayout.marginX ?? activeLayout.margin ?? 15;
+                    updateLayoutPageMarginX(activeLayout.id, current + 5);
                   }}
-                  title="余白を広げる"
+                  title="左右余白を広げる"
                 >
                   <ChevronRight className="w-3 h-3" />
+                </button>
+                <span className="text-gray-500 ml-1">上下:</span>
+                <button
+                  className="p-0.5 border rounded hover:bg-gray-100"
+                  onClick={() => {
+                    const current = activeLayout.marginY ?? activeLayout.margin ?? 15;
+                    updateLayoutPageMarginY(activeLayout.id, Math.max(0, current - 5));
+                  }}
+                  title="上下余白を狭める"
+                >
+                  <ChevronUp className="w-3 h-3" />
+                </button>
+                <span className="w-6 text-center">{activeLayout.marginY ?? activeLayout.margin ?? 15}</span>
+                <button
+                  className="p-0.5 border rounded hover:bg-gray-100"
+                  onClick={() => {
+                    const current = activeLayout.marginY ?? activeLayout.margin ?? 15;
+                    updateLayoutPageMarginY(activeLayout.id, current + 5);
+                  }}
+                  title="上下余白を広げる"
+                >
+                  <ChevronDown className="w-3 h-3" />
                 </button>
               </div>
             )}

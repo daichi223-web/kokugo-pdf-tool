@@ -85,10 +85,13 @@ export function LayoutCanvas({
   } | null>(null);
 
   const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
-  const margin = 15; // 15mm余白
+  // 左右余白と上下余白を取得（後方互換: marginがあればそれを使用）
+  const marginX = layoutPage.marginX ?? layoutPage.margin ?? 15; // 左右余白（mm）
+  const marginY = layoutPage.marginY ?? layoutPage.margin ?? 15; // 上下余白（mm）
   const canvasWidth = mmToPx(paperSize.width, 96); // 96 DPI for screen
   const canvasHeight = mmToPx(paperSize.height, 96);
-  const marginPx = mmToPx(margin, 96);
+  const marginXPx = mmToPx(marginX, 96);
+  const marginYPx = mmToPx(marginY, 96);
 
   // ドラッグ開始
   const handleDragStart = useCallback(
@@ -479,8 +482,8 @@ export function LayoutCanvas({
 
       const rect = canvasRef.current.getBoundingClientRect();
       const position = {
-        x: (e.clientX - rect.left) / zoom - marginPx,
-        y: (e.clientY - rect.top) / zoom - marginPx,
+        x: (e.clientX - rect.left) / zoom - marginXPx,
+        y: (e.clientY - rect.top) / zoom - marginYPx,
       };
 
       // ドロップ直後フラグを設定（内部ドラッグの誤発火を防ぐ）
@@ -489,7 +492,7 @@ export function LayoutCanvas({
 
       addSnippetToLayout(layoutPage.id, snippetId, position);
     },
-    [zoom, marginPx, layoutPage.id, addSnippetToLayout]
+    [zoom, marginXPx, marginYPx, layoutPage.id, addSnippetToLayout]
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -523,10 +526,10 @@ export function LayoutCanvas({
       <div
         className="absolute border border-dashed border-gray-300 pointer-events-none"
         style={{
-          left: marginPx * zoom,
-          top: marginPx * zoom,
-          width: (canvasWidth - marginPx * 2) * zoom,
-          height: (canvasHeight - marginPx * 2) * zoom,
+          left: marginXPx * zoom,
+          top: marginYPx * zoom,
+          width: (canvasWidth - marginXPx * 2) * zoom,
+          height: (canvasHeight - marginYPx * 2) * zoom,
         }}
       />
 
@@ -615,8 +618,8 @@ export function LayoutCanvas({
             key={placed.snippetId}
             className={`snippet ${isSelected ? 'selected' : ''} ${isMultiSelected ? 'multi-selected' : ''}`}
             style={{
-              left: (marginPx + placed.position.x) * zoom,
-              top: (marginPx + placed.position.y) * zoom,
+              left: (marginXPx + placed.position.x) * zoom,
+              top: (marginYPx + placed.position.y) * zoom,
               width: placed.size.width * zoom,
               height: placed.size.height * zoom,
               borderColor: isMultiSelected ? '#f59e0b' : undefined,
@@ -704,8 +707,8 @@ export function LayoutCanvas({
             key={textElement.id}
             className={`absolute border-2 ${isSelected ? 'border-green-500' : 'border-transparent'} cursor-move`}
             style={{
-              left: (marginPx + textElement.position.x) * zoom,
-              top: (marginPx + textElement.position.y) * zoom,
+              left: (marginXPx + textElement.position.x) * zoom,
+              top: (marginYPx + textElement.position.y) * zoom,
               width: textElement.size.width * zoom,
               height: textElement.size.height * zoom,
               writingMode: textElement.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
@@ -857,8 +860,8 @@ export function LayoutCanvas({
             key={shape.id}
             className={`absolute ${isSelected ? 'ring-2 ring-purple-500' : ''} cursor-move`}
             style={{
-              left: (marginPx + shape.position.x) * zoom,
-              top: (marginPx + shape.position.y) * zoom,
+              left: (marginXPx + shape.position.x) * zoom,
+              top: (marginYPx + shape.position.y) * zoom,
               width: shape.size.width * zoom,
               height: shape.size.height * zoom,
             }}

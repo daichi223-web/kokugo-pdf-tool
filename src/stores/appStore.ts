@@ -644,12 +644,34 @@ export const useAppStore = create<Store>()(
         }));
       },
 
-      // ページ余白の更新
+      // ページ余白の更新（後方互換用）
       updateLayoutPageMargin: (pageId: string, margin: number) => {
         set((state) => ({
           layoutPages: state.layoutPages.map((page) =>
             page.id === pageId
-              ? { ...page, margin }
+              ? { ...page, margin, marginX: margin, marginY: margin }
+              : page
+          ),
+        }));
+      },
+
+      // 左右余白の更新
+      updateLayoutPageMarginX: (pageId: string, marginX: number) => {
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, marginX }
+              : page
+          ),
+        }));
+      },
+
+      // 上下余白の更新
+      updateLayoutPageMarginY: (pageId: string, marginY: number) => {
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? { ...page, marginY }
               : page
           ),
         }));
@@ -855,11 +877,12 @@ export const useAppStore = create<Store>()(
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
-        const margin = mmToPx(page.margin ?? 15, 96); // ページ余白（デフォルト15mm）
+        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
+        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
 
         // 配置可能エリア
-        const availableWidth = pageWidth - margin * 2;
-        const availableHeight = pageHeight - margin * 2;
+        const availableWidth = pageWidth - marginX * 2;
+        const availableHeight = pageHeight - marginY * 2;
 
         // セルサイズ
         const cellWidth = availableWidth / cols;
@@ -929,13 +952,14 @@ export const useAppStore = create<Store>()(
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
-        const margin = mmToPx(page.margin ?? 15, 96); // ページ余白（デフォルト15mm）
+        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
+        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
 
         // 配置可能エリア（間隔分を引く）
         const totalGapX = gapX * (cols - 1);
         const totalGapY = gapY * (rows - 1);
-        const availableWidth = pageWidth - margin * 2 - totalGapX;
-        const availableHeight = pageHeight - margin * 2 - totalGapY;
+        const availableWidth = pageWidth - marginX * 2 - totalGapX;
+        const availableHeight = pageHeight - marginY * 2 - totalGapY;
 
         // 統一セルサイズ（全スニペット同じサイズにする）
         const cellWidth = availableWidth / cols;
@@ -1301,7 +1325,8 @@ export const useAppStore = create<Store>()(
 
         // 用紙サイズと余白を取得
         const paperDimensions = getPaperDimensions(page.paperSize, page.orientation);
-        const margin = mmToPx(page.margin ?? 15, 96);
+        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
+        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
         const paperWidthPx = mmToPx(paperDimensions.width, 96);
 
         // 現在の配置からグリッド構造を推定
@@ -1332,13 +1357,13 @@ export const useAppStore = create<Store>()(
 
         // 各行内で隙間なく詰める
         const positionMap = new Map<string, { x: number; y: number }>();
-        let currentY = margin; // 上余白から開始
+        let currentY = marginY; // 上余白から開始
 
         rows.forEach((row) => {
           if (basis === 'right-top') {
             // 右上基準：右余白から左に向かって配置
             row.sort((a, b) => b.position.x - a.position.x); // 右から順に
-            let currentX = paperWidthPx - margin; // 右余白位置
+            let currentX = paperWidthPx - marginX; // 右余白位置
             row.forEach((s) => {
               currentX -= s.size.width; // 左に進む
               positionMap.set(s.snippetId, { x: currentX, y: currentY });
@@ -1346,7 +1371,7 @@ export const useAppStore = create<Store>()(
           } else {
             // 左上基準：左余白から右に向かって配置
             row.sort((a, b) => a.position.x - b.position.x); // 左から順に
-            let currentX = margin; // 左余白位置
+            let currentX = marginX; // 左余白位置
             row.forEach((s) => {
               positionMap.set(s.snippetId, { x: currentX, y: currentY });
               currentX += s.size.width; // 右に進む
