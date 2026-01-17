@@ -44,8 +44,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showGrid: true,
   gridSize: 10,
   snapToGrid: false,
-  defaultPaperSize: 'A4',
-  defaultPaperOrientation: 'portrait',
+  defaultPaperSize: 'A3',
+  defaultPaperOrientation: 'landscape',
 };
 
 interface Store extends AppState, AppActions {

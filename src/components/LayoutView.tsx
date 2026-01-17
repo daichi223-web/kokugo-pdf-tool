@@ -89,10 +89,10 @@ export function LayoutView() {
   const zoom = mode === 'layout' ? layoutZoom : cropZoom;
   const setZoom = mode === 'layout' ? setLayoutZoom : setCropZoom;
   const [newPageSize, setNewPageSize] = useState<PaperSize>(
-    settings.defaultPaperSize ?? 'A4'
+    settings.defaultPaperSize ?? 'A3'
   );
   const [newPageOrientation, setNewPageOrientation] = useState<PaperOrientation>(
-    settings.defaultPaperOrientation ?? 'portrait'
+    settings.defaultPaperOrientation ?? 'landscape'
   );
   const [templateScope, setTemplateScope] = useState<TemplateScope>('global');
   const [showTemplateHistory, setShowTemplateHistory] = useState(false);
