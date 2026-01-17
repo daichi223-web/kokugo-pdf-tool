@@ -231,6 +231,8 @@ export interface AppActions {
   updateSnippetPosition: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetSize: (pageId: string, snippetId: string, size: Size) => void;
   applySnippetSizeToLayout: (pageId: string, size: Size) => void;
+  applySnippetWidthToLayout: (pageId: string, targetWidth: number) => void;
+  applySnippetHeightToLayout: (pageId: string, targetHeight: number) => void;
   removeSnippetFromLayout: (pageId: string, snippetId: string) => void;
   updateLayoutPageMargin: (pageId: string, margin: number) => void;
 

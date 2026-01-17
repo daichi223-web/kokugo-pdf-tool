@@ -20,6 +20,8 @@ import {
   Layers,
   AlignStartVertical,
   AlignStartHorizontal,
+  AlignEndVertical,
+  AlignEndHorizontal,
   Equal,
   Type,
   Square,
@@ -64,6 +66,8 @@ export function LayoutView() {
     selectedPageNumbers,
     addSnippet,
     applySnippetSizeToLayout,
+    applySnippetWidthToLayout,
+    applySnippetHeightToLayout,
     reCropSnippetId,
     setReCropSnippet,
     selectedSnippetIds,
@@ -529,18 +533,44 @@ export function LayoutView() {
         {mode === 'layout' && (
           <>
             <div className="w-px h-6 bg-gray-200" />
-            <button
-              className="flex items-center gap-1 px-4 py-2 bg-orange-500 text-white font-bold rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300 shadow-sm"
-              onClick={() => {
-                if (activeLayout && selectedPlacedSnippet) {
-                  applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size);
-                }
-              }}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="選択中のスニペットサイズを全スニペットに適用"
-            >
-              サイズ一括適用
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                className="flex items-center gap-1 px-2 py-1.5 bg-orange-500 text-white text-xs font-bold rounded hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300"
+                onClick={() => {
+                  if (activeLayout && selectedPlacedSnippet) {
+                    applySnippetWidthToLayout(activeLayout.id, selectedPlacedSnippet.size.width);
+                  }
+                }}
+                disabled={!activeLayout || !selectedPlacedSnippet}
+                title="選択中のスニペットの幅を全スニペットに適用（アスペクト比保持）"
+              >
+                横一括
+              </button>
+              <button
+                className="flex items-center gap-1 px-2 py-1.5 bg-orange-500 text-white text-xs font-bold rounded hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300"
+                onClick={() => {
+                  if (activeLayout && selectedPlacedSnippet) {
+                    applySnippetHeightToLayout(activeLayout.id, selectedPlacedSnippet.size.height);
+                  }
+                }}
+                disabled={!activeLayout || !selectedPlacedSnippet}
+                title="選択中のスニペットの高さを全スニペットに適用（アスペクト比保持）"
+              >
+                縦一括
+              </button>
+              <button
+                className="flex items-center gap-1 px-2 py-1.5 bg-orange-600 text-white text-xs font-bold rounded hover:bg-orange-700 disabled:opacity-50 disabled:bg-gray-300"
+                onClick={() => {
+                  if (activeLayout && selectedPlacedSnippet) {
+                    applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size);
+                  }
+                }}
+                disabled={!activeLayout || !selectedPlacedSnippet}
+                title="選択中のスニペットサイズを全スニペットに適用（アスペクト比変更）"
+              >
+                両方一括
+              </button>
+            </div>
           </>
         )}
 
@@ -600,7 +630,15 @@ export function LayoutView() {
                 title="上揃え"
               >
                 <AlignStartVertical className="w-3 h-3" />
-                上揃え
+                上
+              </button>
+              <button
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                onClick={() => alignSnippets(activeLayout.id, 'bottom')}
+                title="下揃え"
+              >
+                <AlignEndVertical className="w-3 h-3" />
+                下
               </button>
               <button
                 className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
@@ -608,7 +646,15 @@ export function LayoutView() {
                 title="左揃え"
               >
                 <AlignStartHorizontal className="w-3 h-3" />
-                左揃え
+                左
+              </button>
+              <button
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                onClick={() => alignSnippets(activeLayout.id, 'right')}
+                title="右揃え"
+              >
+                <AlignEndHorizontal className="w-3 h-3" />
+                右
               </button>
             </div>
 

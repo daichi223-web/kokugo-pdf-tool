@@ -576,6 +576,58 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // 横サイズ一括適用（アスペクト比保持）
+      applySnippetWidthToLayout: (pageId: string, targetWidth: number) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  snippets: page.snippets.map((s) => {
+                    const aspectRatio = s.size.height / s.size.width;
+                    return {
+                      ...s,
+                      size: {
+                        width: targetWidth,
+                        height: targetWidth * aspectRatio,
+                      },
+                    };
+                  }),
+                }
+              : page
+          ),
+        }));
+      },
+
+      // 縦サイズ一括適用（アスペクト比保持）
+      applySnippetHeightToLayout: (pageId: string, targetHeight: number) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  snippets: page.snippets.map((s) => {
+                    const aspectRatio = s.size.width / s.size.height;
+                    return {
+                      ...s,
+                      size: {
+                        width: targetHeight * aspectRatio,
+                        height: targetHeight,
+                      },
+                    };
+                  }),
+                }
+              : page
+          ),
+        }));
+      },
+
       removeSnippetFromLayout: (pageId: string, snippetId: string) => {
         // Undo用に履歴を保存
         get().pushLayoutHistory();
