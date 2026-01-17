@@ -1315,6 +1315,7 @@ export const useAppStore = create<Store>()(
 
       // 全スニペットを詰め直す（トリミング後の再配置用）
       // basis: 'right-top' = 縦書き用（右上基準）, 'left-top' = 横書き用（左上基準）
+      // 余白内に収まる範囲でスマートに詰める（シェルフ式ビンパッキング）
       repackAllSnippets: (pageId: string, basis: 'right-top' | 'left-top') => {
         const { layoutPages } = get();
         const page = layoutPages.find((p) => p.id === pageId);
@@ -1328,59 +1329,100 @@ export const useAppStore = create<Store>()(
         const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
         const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
         const paperWidthPx = mmToPx(paperDimensions.width, 96);
+        const paperHeightPx = mmToPx(paperDimensions.height, 96);
+        const availableWidth = paperWidthPx - marginX * 2;
+        const availableHeight = paperHeightPx - marginY * 2;
 
-        // 現在の配置からグリッド構造を推定
-        const snippets = [...page.snippets].sort((a, b) => {
-          const rowDiff = Math.round(a.position.y / 50) - Math.round(b.position.y / 50);
-          if (rowDiff !== 0) return rowDiff;
-          // 右上基準の場合は右から左へ、左上基準の場合は左から右へソート
-          return basis === 'right-top'
-            ? b.position.x - a.position.x  // 右から左
-            : a.position.x - b.position.x; // 左から右
+        // スニペットを高さでソート（大きいものから配置）
+        const snippetsToPlace = [...page.snippets].sort((a, b) => {
+          // 高さ優先でソート（高い順）
+          const heightDiff = b.size.height - a.size.height;
+          if (Math.abs(heightDiff) > 5) return heightDiff;
+          // 高さが同じなら幅でソート
+          return b.size.width - a.size.width;
         });
 
-        // 行ごとにグループ化
-        const rows: typeof snippets[] = [];
-        let currentRow: typeof snippets = [];
-        let lastY = snippets[0].position.y;
+        // シェルフ（行）の情報
+        interface Shelf {
+          y: number;        // シェルフのY位置
+          height: number;   // シェルフの高さ
+          usedWidth: number; // 使用済みの幅
+          snippets: { snippetId: string; x: number }[];
+        }
 
-        snippets.forEach((s) => {
-          if (Math.abs(s.position.y - lastY) > 30) {
-            if (currentRow.length > 0) rows.push(currentRow);
-            currentRow = [s];
-            lastY = s.position.y;
-          } else {
-            currentRow.push(s);
-          }
-        });
-        if (currentRow.length > 0) rows.push(currentRow);
-
-        // 各行内で隙間なく詰める
+        const shelves: Shelf[] = [];
         const positionMap = new Map<string, { x: number; y: number }>();
-        let currentY = marginY; // 上余白から開始
 
-        rows.forEach((row) => {
-          if (basis === 'right-top') {
-            // 右上基準：右余白から左に向かって配置
-            row.sort((a, b) => b.position.x - a.position.x); // 右から順に
-            let currentX = paperWidthPx - marginX; // 右余白位置
-            row.forEach((s) => {
-              currentX -= s.size.width; // 左に進む
-              positionMap.set(s.snippetId, { x: currentX, y: currentY });
-            });
-          } else {
-            // 左上基準：左余白から右に向かって配置
-            row.sort((a, b) => a.position.x - b.position.x); // 左から順に
-            let currentX = marginX; // 左余白位置
-            row.forEach((s) => {
-              positionMap.set(s.snippetId, { x: currentX, y: currentY });
-              currentX += s.size.width; // 右に進む
-            });
+        // 各スニペットを配置
+        snippetsToPlace.forEach((snippet) => {
+          const snipWidth = snippet.size.width;
+          const snipHeight = snippet.size.height;
+
+          // 既存のシェルフに入るか試す
+          let placed = false;
+          for (const shelf of shelves) {
+            // このシェルフに入るスペースがあるか
+            if (shelf.usedWidth + snipWidth <= availableWidth) {
+              // シェルフの高さが足りなければ拡張
+              if (snipHeight > shelf.height) {
+                // 次のシェルフに影響しないか確認
+                const shelfIndex = shelves.indexOf(shelf);
+                const nextShelf = shelves[shelfIndex + 1];
+                if (nextShelf) {
+                  const newBottom = shelf.y + snipHeight;
+                  if (newBottom > nextShelf.y) {
+                    // 入らない、次のシェルフを試す
+                    continue;
+                  }
+                }
+                shelf.height = snipHeight;
+              }
+
+              // 配置
+              let x: number;
+              if (basis === 'right-top') {
+                // 右から配置
+                x = paperWidthPx - marginX - shelf.usedWidth - snipWidth;
+              } else {
+                // 左から配置
+                x = marginX + shelf.usedWidth;
+              }
+              shelf.snippets.push({ snippetId: snippet.snippetId, x });
+              shelf.usedWidth += snipWidth;
+              positionMap.set(snippet.snippetId, { x, y: shelf.y });
+              placed = true;
+              break;
+            }
           }
 
-          // 次の行のY位置 = この行の最大高さ
-          const maxHeight = Math.max(...row.map((s) => s.size.height));
-          currentY += maxHeight; // 隙間なし
+          // 既存のシェルフに入らなければ新しいシェルフを作成
+          if (!placed) {
+            const lastShelf = shelves[shelves.length - 1];
+            const newY = lastShelf ? lastShelf.y + lastShelf.height : marginY;
+
+            // 用紙の下端を超えないか確認
+            if (newY + snipHeight <= availableHeight + marginY) {
+              let x: number;
+              if (basis === 'right-top') {
+                x = paperWidthPx - marginX - snipWidth;
+              } else {
+                x = marginX;
+              }
+
+              const newShelf: Shelf = {
+                y: newY,
+                height: snipHeight,
+                usedWidth: snipWidth,
+                snippets: [{ snippetId: snippet.snippetId, x }],
+              };
+              shelves.push(newShelf);
+              positionMap.set(snippet.snippetId, { x, y: newY });
+            } else {
+              // 用紙に収まらない場合は元の位置のまま（または最後に追加）
+              // 一旦、既存位置を維持
+              positionMap.set(snippet.snippetId, { ...snippet.position });
+            }
+          }
         });
 
         set((state) => ({
