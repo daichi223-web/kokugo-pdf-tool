@@ -1348,9 +1348,10 @@ export const useAppStore = create<Store>()(
         });
 
         // 行ごとに配置（シンプルな順次配置）
+        // ※位置は余白からの相対座標で保存（LayoutCanvasで余白分を加算して表示）
         const positionMap = new Map<string, { x: number; y: number }>();
 
-        let currentY = marginY;      // 現在の行のY位置
+        let currentY = 0;            // 現在の行のY位置（余白からの相対）
         let currentRowHeight = 0;    // 現在の行の高さ
         let currentRowUsedWidth = 0; // 現在の行の使用幅
 
@@ -1367,21 +1368,21 @@ export const useAppStore = create<Store>()(
             currentRowUsedWidth = 0;
           }
 
-          // 用紙の下端を超えないか確認
-          if (currentY + snipHeight > availableHeight + marginY) {
+          // 用紙の下端を超えないか確認（余白内に収まるか）
+          if (currentY + snipHeight > availableHeight) {
             // 用紙に収まらない場合は元の位置を維持
             positionMap.set(snippet.snippetId, { ...snippet.position });
             return;
           }
 
-          // 配置位置を計算
+          // 配置位置を計算（余白からの相対座標）
           let x: number;
           if (basis === 'right-top') {
-            // 右から配置: 右余白 - 使用済み幅 - このスニペットの幅
-            x = paperWidthPx - marginX - currentRowUsedWidth - snipWidth;
+            // 右から配置: 配置可能幅 - 使用済み幅 - このスニペットの幅
+            x = availableWidth - currentRowUsedWidth - snipWidth;
           } else {
-            // 左から配置: 左余白 + 使用済み幅
-            x = marginX + currentRowUsedWidth;
+            // 左から配置: 使用済み幅
+            x = currentRowUsedWidth;
           }
 
           positionMap.set(snippet.snippetId, { x, y: currentY });
