@@ -1000,9 +1000,29 @@ export const useAppStore = create<Store>()(
         const availableWidth = pageWidth - marginX * 2 - totalGapX;
         const availableHeight = pageHeight - marginY * 2 - totalGapY;
 
-        // 統一セルサイズ（全スニペット同じサイズにする）
-        const cellWidth = availableWidth / cols;
-        const cellHeight = availableHeight / rows;
+        // 最大セルサイズ（グリッドの1マス分）
+        const maxCellWidth = availableWidth / cols;
+        const maxCellHeight = availableHeight / rows;
+
+        // 最初のスニペットのアスペクト比を取得（トリミング時のズームを考慮）
+        const firstSnippet = snippets[0];
+        const cropZoom = firstSnippet?.cropZoom || 1;
+        const originalWidth = (firstSnippet?.cropArea.width || 100) * cropZoom;
+        const originalHeight = (firstSnippet?.cropArea.height || 100) * cropZoom;
+        const aspectRatio = originalWidth / originalHeight;
+
+        // アスペクト比を維持しながら最大セルに収まるサイズを計算
+        let cellWidth: number;
+        let cellHeight: number;
+        if (maxCellWidth / maxCellHeight > aspectRatio) {
+          // セルが横長 → 高さに合わせる
+          cellHeight = maxCellHeight;
+          cellWidth = cellHeight * aspectRatio;
+        } else {
+          // セルが縦長 → 幅に合わせる
+          cellWidth = maxCellWidth;
+          cellHeight = cellWidth / aspectRatio;
+        }
 
         // 1ページあたりの容量
         const capacity = cols * rows;
