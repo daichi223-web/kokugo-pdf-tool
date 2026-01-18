@@ -82,6 +82,7 @@ export function LayoutView() {
     repackAcrossPages,
     unifyAllPagesSnippetSize,
     setActivePage,
+    arrangeAllSnippetsInGrid,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -90,6 +91,10 @@ export function LayoutView() {
   const [layoutViewMode, setLayoutViewMode] = useState<'tab' | 'continuous'>('continuous'); // 連続表示がデフォルト
   const [pageGapX, setPageGapX] = useState(0); // ページ内間隔調整（横）
   const [pageGapY, setPageGapY] = useState(0); // ページ内間隔調整（縦）
+  const [autoRepack, setAutoRepack] = useState(true); // 自動全詰め機能
+  const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | 'auto'>('4x2');
+  const [gridGapX, setGridGapX] = useState(0); // グリッド配置の間隔（横）
+  const [gridGapY, setGridGapY] = useState(0); // グリッド配置の間隔（縦）
 
   // 現在のモードに応じたズーム値
   const zoom = mode === 'layout' ? layoutZoom : cropZoom;
@@ -322,6 +327,49 @@ export function LayoutView() {
     }
   }, [activeLayoutPageId, layoutPages, settings.writingDirection, applySnippetHeightToLayout, applySnippetWidthToLayout]);
 
+  // 自動全詰め処理（トリミング後に実行）
+  const handleAutoRepack = useCallback(() => {
+    if (!autoRepack || !activeLayoutPageId) return;
+    const basis = settings.writingDirection === 'vertical' ? 'right-top' : 'left-top';
+    repackAllSnippets(activeLayoutPageId, basis);
+  }, [autoRepack, activeLayoutPageId, settings.writingDirection, repackAllSnippets]);
+
+  // グリッドパターンの設定
+  const GRID_PATTERNS: Record<string, { cols: number; rows: number; label: string }> = {
+    '4x2': { cols: 4, rows: 2, label: '4×2' },
+    '4x3': { cols: 4, rows: 3, label: '4×3' },
+    '3x2': { cols: 3, rows: 2, label: '3×2' },
+    '2x2': { cols: 2, rows: 2, label: '2×2' },
+    'auto': { cols: 0, rows: 0, label: '自動' },
+  };
+
+  // スニペット数から最適なグリッドを自動判定
+  const getAutoGrid = (count: number): { cols: number; rows: number } => {
+    if (count <= 2) return { cols: 2, rows: 1 };
+    if (count <= 4) return { cols: 2, rows: 2 };
+    if (count <= 6) return { cols: 3, rows: 2 };
+    if (count <= 8) return { cols: 4, rows: 2 };
+    if (count <= 12) return { cols: 4, rows: 3 };
+    return { cols: 4, rows: Math.ceil(count / 4) };
+  };
+
+  // 全て配置
+  const handleArrangeAll = useCallback(() => {
+    if (!activeLayoutPageId || snippets.length === 0) return;
+
+    let cols: number, rows: number;
+    if (gridPattern === 'auto') {
+      const auto = getAutoGrid(snippets.length);
+      cols = auto.cols;
+      rows = auto.rows;
+    } else {
+      cols = GRID_PATTERNS[gridPattern].cols;
+      rows = GRID_PATTERNS[gridPattern].rows;
+    }
+
+    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, gridGapX, gridGapY);
+  }, [activeLayoutPageId, snippets.length, gridPattern, gridGapX, gridGapY, arrangeAllSnippetsInGrid]);
+
   // PDF出力
   const handleExportPDF = useCallback(async () => {
     if (layoutPages.length === 0) return;
@@ -507,6 +555,57 @@ export function LayoutView() {
       {/* ===== ツールバー下段: 配置モード用ツール ===== */}
       {mode === 'layout' && (
         <div className="bg-white rounded-lg shadow px-4 py-2 flex items-center gap-3 flex-wrap">
+          {/* すべて配置グループ */}
+          {snippets.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-orange-50 rounded border border-orange-200">
+              <span className="text-xs text-orange-600 mr-1">配置</span>
+              <select
+                className="border rounded px-1 py-0.5 text-xs"
+                value={gridPattern}
+                onChange={(e) => setGridPattern(e.target.value as typeof gridPattern)}
+              >
+                {Object.entries(GRID_PATTERNS).map(([key, value]) => (
+                  <option key={key} value={key}>{value.label}</option>
+                ))}
+              </select>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapX(gridGapX - 10)} title="横間隔を狭める">
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="text-xs w-6 text-center">{gridGapX}</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapX(gridGapX + 10)} title="横間隔を広げる">
+                <ChevronRight className="w-3 h-3" />
+              </button>
+              <span className="text-gray-300">/</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapY(gridGapY - 10)} title="縦間隔を狭める">
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <span className="text-xs w-6 text-center">{gridGapY}</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapY(gridGapY + 10)} title="縦間隔を広げる">
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              <button
+                className="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50"
+                onClick={handleArrangeAll}
+                disabled={!activeLayoutPageId}
+                title="全スニペットをグリッド配置"
+              >
+                全て配置
+              </button>
+            </div>
+          )}
+
+          {/* 自動全詰めオン/オフ */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
+            <span className="text-xs text-gray-500 mr-1">自動詰め</span>
+            <button
+              className={`px-2 py-1 text-xs rounded ${autoRepack ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
+              onClick={() => setAutoRepack(!autoRepack)}
+              title={autoRepack ? '自動全詰め: オン' : '自動全詰め: オフ'}
+            >
+              {autoRepack ? 'ON' : 'OFF'}
+            </button>
+          </div>
+
           {/* 用紙グループ */}
           <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
             <span className="text-xs text-gray-500 mr-1">用紙</span>
@@ -657,22 +756,22 @@ export function LayoutView() {
             </div>
           )}
 
-          {/* 間隔グループ */}
+          {/* 間隔グループ（マイナス対応で重ねも可能） */}
           {activeLayout && activeLayout.snippets.length > 0 && (
             <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
               <span className="text-xs text-gray-500 mr-1">間隔</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = Math.max(0, pageGapX - 10); setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapX - 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
                 <ChevronLeft className="w-3 h-3" />
               </button>
-              <span className="text-xs w-4 text-center">{pageGapX}</span>
+              <span className="text-xs w-6 text-center">{pageGapX}</span>
               <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapX + 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
                 <ChevronRight className="w-3 h-3" />
               </button>
               <span className="text-gray-300 mx-0.5">/</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = Math.max(0, pageGapY - 10); setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapY - 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
                 <ChevronUp className="w-3 h-3" />
               </button>
-              <span className="text-xs w-4 text-center">{pageGapY}</span>
+              <span className="text-xs w-6 text-center">{pageGapY}</span>
               <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapY + 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
                 <ChevronDown className="w-3 h-3" />
               </button>
@@ -828,8 +927,11 @@ export function LayoutView() {
                     onCropComplete={() => {
                       setReCropSnippet(null);
                       setMode('layout'); // 再トリミング完了後、配置モードに戻る
-                      // 自動サイズ揃え（少し遅延させてスニペット更新後に実行）
-                      setTimeout(handleAutoUnifySize, 100);
+                      // 自動サイズ揃え＆自動全詰め（少し遅延させてスニペット更新後に実行）
+                      setTimeout(() => {
+                        handleAutoUnifySize();
+                        handleAutoRepack();
+                      }, 100);
                     }}
                     updateSnippetId={reCropSnippetId}
                   />
@@ -865,6 +967,13 @@ export function LayoutView() {
                   onTemplateApplied={() => setPendingTemplate(null)}
                   batchMode={selectedPageNumbers.length > 1}
                   onBatchCrop={handleBatchCrop}
+                  onCropComplete={() => {
+                    // 自動サイズ揃え＆自動全詰め（少し遅延させてスニペット追加後に実行）
+                    setTimeout(() => {
+                      handleAutoUnifySize();
+                      handleAutoRepack();
+                    }, 100);
+                  }}
                 />
               </div>
             ) : (

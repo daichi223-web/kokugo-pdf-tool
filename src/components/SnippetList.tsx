@@ -189,12 +189,12 @@ export function SnippetList() {
           <div className="flex items-center justify-between text-xs">
             <span className="text-gray-500">間隔:</span>
             <div className="flex items-center gap-1">
-              {/* 横間隔 */}
+              {/* 横間隔（マイナスで重ね可） */}
               <button
                 className="p-0.5 border rounded hover:bg-gray-100 disabled:opacity-50"
-                onClick={() => handleGapChange(Math.max(0, gapX - GAP_STEP), gapY)}
+                onClick={() => handleGapChange(gapX - GAP_STEP, gapY)}
                 disabled={!activeLayoutPageId}
-                title="横間隔を狭める"
+                title="横間隔を狭める（マイナスで重ね）"
               >
                 <ChevronLeft className="w-3 h-3" />
               </button>
@@ -210,12 +210,12 @@ export function SnippetList() {
 
               <span className="mx-1 text-gray-300">|</span>
 
-              {/* 縦間隔 */}
+              {/* 縦間隔（マイナスで重ね可） */}
               <button
                 className="p-0.5 border rounded hover:bg-gray-100 disabled:opacity-50"
-                onClick={() => handleGapChange(gapX, Math.max(0, gapY - GAP_STEP))}
+                onClick={() => handleGapChange(gapX, gapY - GAP_STEP)}
                 disabled={!activeLayoutPageId}
-                title="縦間隔を狭める"
+                title="縦間隔を狭める（マイナスで重ね）"
               >
                 <ChevronUp className="w-3 h-3" />
               </button>
