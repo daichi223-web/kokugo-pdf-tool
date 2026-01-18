@@ -3,7 +3,7 @@
 // BATCH-001: 複数選択対応
 // =============================================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { CheckCircle, AlertCircle, Loader, CheckSquare, Square } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import type { PDFFile } from '../types';
@@ -25,6 +25,19 @@ export function PageThumbnails({ file, multiSelectMode = false }: PageThumbnails
   } = useAppStore();
 
   const [lastClickedPage, setLastClickedPage] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const thumbnailRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // アクティブページが変わったら自動スクロール
+  useEffect(() => {
+    const thumbnail = thumbnailRefs.current.get(activePageNumber);
+    if (thumbnail && containerRef.current) {
+      thumbnail.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [activePageNumber]);
 
   const handlePageClick = useCallback(
     (e: React.MouseEvent, pageNumber: number) => {
@@ -97,7 +110,7 @@ export function PageThumbnails({ file, multiSelectMode = false }: PageThumbnails
         </div>
       )}
 
-      <div className="space-y-2 flex-1 overflow-auto">
+      <div ref={containerRef} className="space-y-2 flex-1 overflow-auto">
         {file.pages.map((page) => {
           const isSelected = isPageSelected(page.pageNumber);
           const isActive = activePageNumber === page.pageNumber;
@@ -105,6 +118,9 @@ export function PageThumbnails({ file, multiSelectMode = false }: PageThumbnails
           return (
             <div
               key={page.pageNumber}
+              ref={(el) => {
+                if (el) thumbnailRefs.current.set(page.pageNumber, el);
+              }}
               className={`thumbnail relative cursor-pointer ${isActive ? 'active' : ''} ${
                 multiSelectMode && isSelected ? 'ring-2 ring-blue-500' : ''
               }`}

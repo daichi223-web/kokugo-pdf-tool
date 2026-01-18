@@ -15,7 +15,21 @@ export function SnippetList() {
     activeLayoutPageId,
     addSnippetToLayout,
     setReCropSnippet,
+    setActiveFile,
+    setActivePage,
+    activeFileId,
   } = useAppStore();
+
+  // スニペットを選択した時にソースファイル・ページもアクティブに設定
+  const handleSnippetClick = (snippet: typeof snippets[0]) => {
+    setSelectedSnippet(snippet.id);
+    // ファイルが異なる場合は切り替え
+    if (snippet.sourceFileId !== activeFileId) {
+      setActiveFile(snippet.sourceFileId);
+    }
+    // ページを設定
+    setActivePage(snippet.sourcePageNumber);
+  };
 
   const handleDragStart = (e: React.DragEvent, snippetId: string) => {
     e.dataTransfer.setData('snippetId', snippetId);
@@ -49,7 +63,7 @@ export function SnippetList() {
                     ? 'border-blue-500'
                     : 'border-transparent hover:border-blue-300'
                 }`}
-                onClick={() => setSelectedSnippet(snippet.id)}
+                onClick={() => handleSnippetClick(snippet)}
                 draggable
                 onDragStart={(e) => handleDragStart(e, snippet.id)}
               >

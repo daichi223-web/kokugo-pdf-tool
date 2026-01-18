@@ -44,7 +44,7 @@ import {
   getLatestTemplateAny,
   getTemplates,
 } from '../utils/cropTemplateUtils';
-import { exportLayoutToPDF } from '../utils/exportUtils';
+import { exportLayoutToPDF, type PdfQuality } from '../utils/exportUtils';
 
 export function LayoutView() {
   const {
@@ -82,6 +82,7 @@ export function LayoutView() {
     repackAcrossPages,
     unifyAllPagesSnippetSize,
     setActivePage,
+    setActiveFile,
     arrangeAllSnippetsInGrid,
   } = useAppStore();
 
@@ -95,6 +96,7 @@ export function LayoutView() {
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | 'auto'>('4x2');
   const [gridGapX, setGridGapX] = useState(0); // グリッド配置の間隔（横）
   const [gridGapY, setGridGapY] = useState(0); // グリッド配置の間隔（縦）
+  const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard'); // PDF出力画質
 
   // 現在のモードに応じたズーム値
   const zoom = mode === 'layout' ? layoutZoom : cropZoom;
@@ -209,14 +211,18 @@ export function LayoutView() {
   // 再トリミングモード開始時に自動でトリミングモードに切り替え＆元ページへ移動
   useEffect(() => {
     if (reCropSnippetId) {
-      // 再トリミング対象のスニペットのソースページに自動移動
+      // 再トリミング対象のスニペットのソースファイル・ページに自動移動
       const snippet = snippets.find(s => s.id === reCropSnippetId);
       if (snippet) {
+        // ファイルIDも設定（別ファイルからのスニペットの場合に必要）
+        if (snippet.sourceFileId !== activeFileId) {
+          setActiveFile(snippet.sourceFileId);
+        }
         setActivePage(snippet.sourcePageNumber);
       }
       setMode('crop');
     }
-  }, [reCropSnippetId, snippets, setActivePage]);
+  }, [reCropSnippetId, snippets, setActivePage, setActiveFile, activeFileId]);
 
   const handleAddPage = () => {
     addLayoutPage(newPageSize, newPageOrientation);
@@ -376,7 +382,7 @@ export function LayoutView() {
 
     setIsExporting(true);
     try {
-      const blob = await exportLayoutToPDF(layoutPages, snippets);
+      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -389,7 +395,7 @@ export function LayoutView() {
     } finally {
       setIsExporting(false);
     }
-  }, [layoutPages, snippets]);
+  }, [layoutPages, snippets, pdfQuality]);
 
   return (
     <div className="h-full flex flex-col gap-2">
@@ -542,14 +548,26 @@ export function LayoutView() {
         </button>
 
         {/* PDF出力 */}
-        <button
-          className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white font-bold rounded hover:bg-green-600 disabled:opacity-50"
-          disabled={layoutPages.length === 0 || isExporting}
-          onClick={handleExportPDF}
-        >
-          <Download className="w-4 h-4" />
-          {isExporting ? '出力中...' : 'PDF出力'}
-        </button>
+        <div className="flex items-center gap-1">
+          <select
+            className="border rounded px-1 py-1 text-xs"
+            value={pdfQuality}
+            onChange={(e) => setPdfQuality(e.target.value as PdfQuality)}
+            title="PDF画質設定"
+          >
+            <option value="high">高画質</option>
+            <option value="standard">標準</option>
+            <option value="light">軽量</option>
+          </select>
+          <button
+            className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white font-bold rounded hover:bg-green-600 disabled:opacity-50"
+            disabled={layoutPages.length === 0 || isExporting}
+            onClick={handleExportPDF}
+          >
+            <Download className="w-4 h-4" />
+            {isExporting ? '出力中...' : 'PDF出力'}
+          </button>
+        </div>
       </div>
 
       {/* ===== ツールバー下段: 配置モード用ツール ===== */}

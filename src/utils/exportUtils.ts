@@ -256,14 +256,76 @@ async function renderTextElementToImage(textElement: TextElement): Promise<strin
 }
 
 /**
+ * PDF出力の画質設定
+ */
+export type PdfQuality = 'high' | 'standard' | 'light';
+
+export interface PdfQualitySettings {
+  format: 'png' | 'jpeg';
+  quality: number;  // JPEG品質 0-1
+  scale: number;    // 解像度スケール 0-1
+}
+
+export const PDF_QUALITY_PRESETS: Record<PdfQuality, PdfQualitySettings> = {
+  high: { format: 'png', quality: 1, scale: 1 },
+  standard: { format: 'jpeg', quality: 0.8, scale: 1 },
+  light: { format: 'jpeg', quality: 0.6, scale: 0.75 },
+};
+
+/**
+ * 画像をリサイズ・圧縮する
+ */
+async function processImageForPdf(
+  imageData: string,
+  settings: PdfQualitySettings
+): Promise<{ data: ArrayBuffer; isPng: boolean }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context not available'));
+        return;
+      }
+
+      // スケールを適用
+      canvas.width = Math.round(img.width * settings.scale);
+      canvas.height = Math.round(img.height * settings.scale);
+
+      // 白背景（JPEG用）
+      if (settings.format === 'jpeg') {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // 出力形式を選択
+      const mimeType = settings.format === 'png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = canvas.toDataURL(mimeType, settings.quality);
+
+      fetch(dataUrl)
+        .then(res => res.arrayBuffer())
+        .then(buffer => resolve({ data: buffer, isPng: settings.format === 'png' }))
+        .catch(reject);
+    };
+    img.onerror = reject;
+    img.src = imageData;
+  });
+}
+
+/**
  * レイアウトをPDFとしてエクスポート
  * P3-006: 印刷用PDF出力
  */
 export async function exportLayoutToPDF(
   layoutPages: LayoutPage[],
-  snippets: Snippet[]
+  snippets: Snippet[],
+  quality: PdfQuality = 'high'
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
+  const qualitySettings = PDF_QUALITY_PRESETS[quality];
 
   // 画面は96 DPI、PDFは72 DPI（ポイント）
   const screenDpi = 96;
@@ -285,11 +347,11 @@ export async function exportLayoutToPDF(
       if (!snippet || !snippet.imageData) continue;
 
       try {
-        // Base64画像をPDFに埋め込み
-        const imageBytes = await fetch(snippet.imageData).then((res) =>
-          res.arrayBuffer()
-        );
-        const image = await pdfDoc.embedPng(imageBytes);
+        // 画像を処理（圧縮・リサイズ）してPDFに埋め込み
+        const processed = await processImageForPdf(snippet.imageData, qualitySettings);
+        const image = processed.isPng
+          ? await pdfDoc.embedPng(processed.data)
+          : await pdfDoc.embedJpg(processed.data);
 
         // 配置位置とサイズを計算（96 DPIピクセル → 72 DPIポイント）
         const x = margin + placedSnippet.position.x * dpiRatio;
