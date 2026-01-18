@@ -22,13 +22,10 @@ import {
   AlignStartHorizontal,
   AlignEndVertical,
   AlignEndHorizontal,
-  Equal,
   Type,
   Square,
   Circle,
   Minus,
-  ArrowRightToLine,
-  ArrowDownToLine,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -347,9 +344,9 @@ export function LayoutView() {
   }, [layoutPages, snippets]);
 
   return (
-    <div className="h-full flex flex-col gap-4">
-      {/* ツールバー */}
-      <div className="toolbar rounded-lg shadow">
+    <div className="h-full flex flex-col gap-2">
+      {/* ===== ツールバー上段: 基本設定 ===== */}
+      <div className="bg-white rounded-lg shadow px-4 py-2 flex items-center gap-4">
         {/* モード切り替え */}
         <div className="flex bg-gray-200 rounded-lg p-1">
           <button
@@ -374,12 +371,48 @@ export function LayoutView() {
           </button>
         </div>
 
-        <div className="w-px h-6 bg-gray-200" />
+        <div className="w-px h-8 bg-gray-300" />
 
-        {/* CROP-006: テンプレート管理（トリミングモード時のみ） */}
+        {/* 書字方向（目立つトグル） */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-2 border-amber-400 rounded-lg">
+          <span className="text-sm font-bold text-amber-800">書字方向:</span>
+          <div className="flex bg-amber-200 rounded p-0.5">
+            <button
+              className={`px-3 py-1 text-sm font-bold rounded transition-all ${
+                settings.writingDirection === 'vertical'
+                  ? 'bg-amber-500 text-white shadow'
+                  : 'text-amber-700 hover:bg-amber-300'
+              }`}
+              onClick={() => {
+                updateSettings({ writingDirection: 'vertical' });
+                setNewPageSize('A3');
+                setNewPageOrientation('landscape');
+              }}
+            >
+              縦書き
+            </button>
+            <button
+              className={`px-3 py-1 text-sm font-bold rounded transition-all ${
+                settings.writingDirection === 'horizontal'
+                  ? 'bg-amber-500 text-white shadow'
+                  : 'text-amber-700 hover:bg-amber-300'
+              }`}
+              onClick={() => {
+                updateSettings({ writingDirection: 'horizontal' });
+                setNewPageSize('A4');
+                setNewPageOrientation('portrait');
+              }}
+            >
+              横書き
+            </button>
+          </div>
+        </div>
+
+        {/* テンプレート（トリミングモード時のみ） */}
         {mode === 'crop' && (
           <>
-            <div className="flex items-center gap-1">
+            <div className="w-px h-8 bg-gray-300" />
+            <div className="flex items-center gap-2 px-2 py-1 bg-gray-50 rounded border">
               <span className="text-xs text-gray-500">テンプレ:</span>
               <select
                 className="border rounded px-1 py-0.5 text-xs"
@@ -390,212 +423,68 @@ export function LayoutView() {
                 <option value="file">ファイル</option>
                 <option value="page">ページ</option>
               </select>
-            </div>
-
-            <button
-              className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-              onClick={handleApplyLastTemplate}
-              title="前回のテンプレートを適用"
-            >
-              <RotateCcw className="w-3 h-3" />
-              前回適用
-            </button>
-
-            <div className="relative">
               <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => setShowTemplateHistory(!showTemplateHistory)}
-                title="テンプレート履歴"
+                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-100"
+                onClick={handleApplyLastTemplate}
+                title="前回のテンプレートを適用"
               >
-                <History className="w-3 h-3" />
-                履歴
+                <RotateCcw className="w-3 h-3" />
+                前回
               </button>
-              {showTemplateHistory && templateHistory.length > 0 && (
-                <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20 min-w-[150px]">
-                  {templateHistory.map((t, i) => (
-                    <button
-                      key={i}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100 border-b last:border-b-0"
-                      onClick={() => handleApplyTemplate(t)}
-                    >
-                      {Math.round(t.width)} × {Math.round(t.height)}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {showTemplateHistory && templateHistory.length === 0 && (
-                <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20 p-2 text-xs text-gray-500">
-                  履歴なし
-                </div>
-              )}
-            </div>
-
-            <div className="w-px h-6 bg-gray-200" />
-          </>
-        )}
-
-        {/* P3-004: 用紙サイズ選択 */}
-        {mode === 'layout' && (
-          <>
-            {/* 書字方向切り替え */}
-            <select
-              className="border rounded px-2 py-1 text-sm bg-yellow-50"
-              value={settings.writingDirection}
-              onChange={(e) => {
-                const newDirection = e.target.value as 'vertical' | 'horizontal';
-                updateSettings({ writingDirection: newDirection });
-                // 用紙サイズも連動更新
-                if (newDirection === 'vertical') {
-                  setNewPageSize('A3');
-                  setNewPageOrientation('landscape');
-                } else {
-                  setNewPageSize('A4');
-                  setNewPageOrientation('portrait');
-                }
-              }}
-            >
-              <option value="vertical">縦書き</option>
-              <option value="horizontal">横書き</option>
-            </select>
-
-            <div className="w-px h-6 bg-gray-200" />
-
-            <select
-              className="border rounded px-2 py-1 text-sm"
-              value={newPageSize}
-              onChange={(e) => setNewPageSize(e.target.value as PaperSize)}
-            >
-              {Object.entries(PAPER_SIZES).map(([key, value]) => (
-                <option key={key} value={key}>
-                  {value.label}
-                </option>
-              ))}
-            </select>
-            <select
-              className="border rounded px-2 py-1 text-sm"
-              value={newPageOrientation}
-              onChange={(e) => setNewPageOrientation(e.target.value as PaperOrientation)}
-            >
-              <option value="portrait">縦</option>
-              <option value="landscape">横</option>
-            </select>
-            <button
-              className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600"
-              onClick={handleAddPage}
-            >
-              <Plus className="w-4 h-4" />
-              新規ページ
-            </button>
-
-            <button
-              className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-              onClick={() => {
-                if (activeLayoutPageId) {
-                  addTextElement(activeLayoutPageId, { x: 50, y: 50 });
-                }
-              }}
-              disabled={!activeLayoutPageId}
-              title="縦書きテキストを追加"
-            >
-              <Type className="w-4 h-4" />
-              テキスト
-            </button>
-
-            {/* 図形追加ボタン */}
-            <button
-              className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-              onClick={() => {
-                if (activeLayoutPageId) {
-                  addShapeElement(activeLayoutPageId, 'rectangle', { x: 50, y: 50 });
-                }
-              }}
-              disabled={!activeLayoutPageId}
-              title="四角形を追加"
-            >
-              <Square className="w-4 h-4" />
-            </button>
-            <button
-              className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-              onClick={() => {
-                if (activeLayoutPageId) {
-                  addShapeElement(activeLayoutPageId, 'circle', { x: 50, y: 50 });
-                }
-              }}
-              disabled={!activeLayoutPageId}
-              title="円を追加"
-            >
-              <Circle className="w-4 h-4" />
-            </button>
-            <button
-              className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-              onClick={() => {
-                if (activeLayoutPageId) {
-                  addShapeElement(activeLayoutPageId, 'line', { x: 50, y: 50 });
-                }
-              }}
-              disabled={!activeLayoutPageId}
-              title="線を追加"
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-
-            <div className="w-px h-6 bg-gray-200" />
-
-            {/* ページ余白調整 */}
-            {activeLayout && (
-              <div className="flex items-center gap-1 text-xs">
-                <span className="text-gray-500">左右:</span>
+              <div className="relative">
                 <button
-                  className="p-0.5 border rounded hover:bg-gray-100"
-                  onClick={() => {
-                    const current = activeLayout.marginX ?? activeLayout.margin ?? 15;
-                    updateLayoutPageMarginX(activeLayout.id, Math.max(0, current - 5));
-                  }}
-                  title="左右余白を狭める"
+                  className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-100"
+                  onClick={() => setShowTemplateHistory(!showTemplateHistory)}
+                  title="テンプレート履歴"
                 >
-                  <ChevronLeft className="w-3 h-3" />
+                  <History className="w-3 h-3" />
+                  履歴
                 </button>
-                <span className="w-6 text-center">{activeLayout.marginX ?? activeLayout.margin ?? 15}</span>
-                <button
-                  className="p-0.5 border rounded hover:bg-gray-100"
-                  onClick={() => {
-                    const current = activeLayout.marginX ?? activeLayout.margin ?? 15;
-                    updateLayoutPageMarginX(activeLayout.id, current + 5);
-                  }}
-                  title="左右余白を広げる"
-                >
-                  <ChevronRight className="w-3 h-3" />
-                </button>
-                <span className="text-gray-500 ml-1">上下:</span>
-                <button
-                  className="p-0.5 border rounded hover:bg-gray-100"
-                  onClick={() => {
-                    const current = activeLayout.marginY ?? activeLayout.margin ?? 15;
-                    updateLayoutPageMarginY(activeLayout.id, Math.max(0, current - 5));
-                  }}
-                  title="上下余白を狭める"
-                >
-                  <ChevronUp className="w-3 h-3" />
-                </button>
-                <span className="w-6 text-center">{activeLayout.marginY ?? activeLayout.margin ?? 15}</span>
-                <button
-                  className="p-0.5 border rounded hover:bg-gray-100"
-                  onClick={() => {
-                    const current = activeLayout.marginY ?? activeLayout.margin ?? 15;
-                    updateLayoutPageMarginY(activeLayout.id, current + 5);
-                  }}
-                  title="上下余白を広げる"
-                >
-                  <ChevronDown className="w-3 h-3" />
-                </button>
+                {showTemplateHistory && templateHistory.length > 0 && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20 min-w-[150px]">
+                    {templateHistory.map((t, i) => (
+                      <button
+                        key={i}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100 border-b last:border-b-0"
+                        onClick={() => handleApplyTemplate(t)}
+                      >
+                        {Math.round(t.width)} × {Math.round(t.height)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showTemplateHistory && templateHistory.length === 0 && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20 p-2 text-xs text-gray-500">
+                    履歴なし
+                  </div>
+                )}
               </div>
-            )}
-
-            <div className="w-px h-6 bg-gray-200" />
+            </div>
           </>
         )}
 
-        {/* P3-005: グリッド表示 */}
+        <div className="flex-1" />
+
+        {/* ズーム */}
+        <div className="flex items-center gap-1">
+          <button className="toolbar-button" onClick={handleZoomOut} aria-label="縮小">
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <span className="text-sm min-w-[3rem] text-center">{Math.round(zoom * 100)}%</span>
+          <button className="toolbar-button" onClick={handleZoomIn} aria-label="拡大">
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button
+            className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+            onClick={mode === 'layout' ? calculateLayoutFitZoom : calculateCropFitZoom}
+          >
+            フィット
+          </button>
+        </div>
+
+        <div className="w-px h-8 bg-gray-300" />
+
+        {/* グリッド */}
         <button
           className={`toolbar-button ${settings.showGrid ? 'active' : ''}`}
           onClick={() => updateSettings({ showGrid: !settings.showGrid })}
@@ -604,298 +493,9 @@ export function LayoutView() {
           <Grid className="w-5 h-5" />
         </button>
 
-        {mode === 'layout' && (
-          <>
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="flex items-center gap-1">
-              <button
-                className="flex items-center gap-1 px-2 py-1.5 bg-orange-500 text-white text-xs font-bold rounded hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300"
-                onClick={() => {
-                  if (activeLayout && selectedPlacedSnippet) {
-                    applySnippetWidthToLayout(activeLayout.id, selectedPlacedSnippet.size.width);
-                  }
-                }}
-                disabled={!activeLayout || !selectedPlacedSnippet}
-                title="選択中のスニペットの幅を全スニペットに適用（アスペクト比保持）"
-              >
-                横一括
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1.5 bg-orange-500 text-white text-xs font-bold rounded hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300"
-                onClick={() => {
-                  if (activeLayout && selectedPlacedSnippet) {
-                    applySnippetHeightToLayout(activeLayout.id, selectedPlacedSnippet.size.height);
-                  }
-                }}
-                disabled={!activeLayout || !selectedPlacedSnippet}
-                title="選択中のスニペットの高さを全スニペットに適用（アスペクト比保持）"
-              >
-                縦一括
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1.5 bg-orange-600 text-white text-xs font-bold rounded hover:bg-orange-700 disabled:opacity-50 disabled:bg-gray-300"
-                onClick={() => {
-                  if (activeLayout && selectedPlacedSnippet) {
-                    applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size);
-                  }
-                }}
-                disabled={!activeLayout || !selectedPlacedSnippet}
-                title="選択中のスニペットサイズを全スニペットに適用（アスペクト比変更）"
-              >
-                両方一括
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* テキスト要素選択時のコントロール */}
-        {mode === 'layout' && activeLayout && selectedTextElement && (
-          <>
-            <div className="w-px h-6 bg-gray-200" />
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-              テキスト選択中
-            </span>
-            <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded border border-green-200">
-              <button
-                className="px-2 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
-                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { fontSize: Math.max(8, selectedTextElement.fontSize - 2) })}
-              >
-                -
-              </button>
-              <span className="text-sm font-medium min-w-[50px] text-center">{selectedTextElement.fontSize}px</span>
-              <button
-                className="px-2 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
-                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { fontSize: selectedTextElement.fontSize + 2 })}
-              >
-                +
-              </button>
-              <div className="w-px h-5 bg-green-300 mx-1" />
-              <button
-                className={`px-2 py-1 text-sm rounded ${selectedTextElement.writingMode === 'vertical' ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}
-                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { writingMode: 'vertical' })}
-              >
-                縦
-              </button>
-              <button
-                className={`px-2 py-1 text-sm rounded ${selectedTextElement.writingMode === 'horizontal' ? 'bg-green-600 text-white' : 'bg-white text-green-700 border border-green-300 hover:bg-green-50'}`}
-                onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { writingMode: 'horizontal' })}
-              >
-                横
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* 選択時のみ表示：整列・サイズ統一ツール */}
-        {mode === 'layout' && activeLayout && selectedSnippetIds.length >= 2 && (
-          <>
-            <div className="w-px h-6 bg-gray-200" />
-
-            {/* 選択数表示 */}
-            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
-              {selectedSnippetIds.length}個選択中
-            </span>
-
-            {/* 整列ボタン */}
-            <div className="flex items-center gap-1">
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => alignSnippets(activeLayout.id, 'top')}
-                title="上揃え"
-              >
-                <AlignStartVertical className="w-3 h-3" />
-                上
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => alignSnippets(activeLayout.id, 'bottom')}
-                title="下揃え"
-              >
-                <AlignEndVertical className="w-3 h-3" />
-                下
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => alignSnippets(activeLayout.id, 'left')}
-                title="左揃え"
-              >
-                <AlignStartHorizontal className="w-3 h-3" />
-                左
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => alignSnippets(activeLayout.id, 'right')}
-                title="右揃え"
-              >
-                <AlignEndHorizontal className="w-3 h-3" />
-                右
-              </button>
-            </div>
-
-            <div className="w-px h-6 bg-gray-200" />
-
-            {/* サイズ統一ボタン */}
-            <div className="flex items-center gap-1">
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => unifySnippetSize(activeLayout.id, 'height')}
-                title="高さを統一（最初の選択に合わせる）"
-              >
-                <Equal className="w-3 h-3 rotate-90" />
-                高さ統一
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                onClick={() => unifySnippetSize(activeLayout.id, 'width')}
-                title="幅を統一（最初の選択に合わせる）"
-              >
-                <Equal className="w-3 h-3" />
-                幅統一
-              </button>
-            </div>
-
-            <div className="w-px h-6 bg-gray-200" />
-
-            {/* 端をくっつけるボタン */}
-            <div className="flex items-center gap-1">
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 bg-purple-50 border-purple-300"
-                onClick={() => packSnippets(activeLayout.id, 'horizontal')}
-                title="横方向に隙間なく並べる"
-              >
-                <ArrowRightToLine className="w-3 h-3" />
-                横くっつけ
-              </button>
-              <button
-                className="flex items-center gap-1 px-2 py-1 text-xs border rounded hover:bg-gray-50 bg-purple-50 border-purple-300"
-                onClick={() => packSnippets(activeLayout.id, 'vertical')}
-                title="縦方向に隙間なく並べる"
-              >
-                <ArrowDownToLine className="w-3 h-3" />
-                縦くっつけ
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ページ内間隔調整（配置モードでページが選択されている時） */}
-        {mode === 'layout' && activeLayout && activeLayout.snippets.length > 0 && (
-          <>
-            <div className="w-px h-6 bg-gray-200" />
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-gray-500">間隔:</span>
-              {/* 横間隔 */}
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => {
-                  const newGapX = Math.max(0, pageGapX - 10);
-                  setPageGapX(newGapX);
-                  adjustPageSnippetsGap(activeLayout.id, newGapX, pageGapY);
-                }}
-                title="横間隔を狭める"
-              >
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <span className="w-6 text-center">{pageGapX}</span>
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => {
-                  const newGapX = pageGapX + 10;
-                  setPageGapX(newGapX);
-                  adjustPageSnippetsGap(activeLayout.id, newGapX, pageGapY);
-                }}
-                title="横間隔を広げる"
-              >
-                <ChevronRight className="w-3 h-3" />
-              </button>
-
-              <span className="mx-1 text-gray-300">|</span>
-
-              {/* 縦間隔 */}
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => {
-                  const newGapY = Math.max(0, pageGapY - 10);
-                  setPageGapY(newGapY);
-                  adjustPageSnippetsGap(activeLayout.id, pageGapX, newGapY);
-                }}
-                title="縦間隔を狭める"
-              >
-                <ChevronUp className="w-3 h-3" />
-              </button>
-              <span className="w-6 text-center">{pageGapY}</span>
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => {
-                  const newGapY = pageGapY + 10;
-                  setPageGapY(newGapY);
-                  adjustPageSnippetsGap(activeLayout.id, pageGapX, newGapY);
-                }}
-                title="縦間隔を広げる"
-              >
-                <ChevronDown className="w-3 h-3" />
-              </button>
-              <span className="mx-1 text-gray-300">|</span>
-              <span className="text-xs text-gray-500">全詰:</span>
-              <button
-                className="px-2 py-0.5 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                onClick={() => repackAllSnippets(activeLayout.id, 'right-top')}
-                title="右上基準で詰める（縦書き用）"
-              >
-                右上
-              </button>
-              <button
-                className="px-2 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                onClick={() => repackAllSnippets(activeLayout.id, 'left-top')}
-                title="左上基準で詰める（横書き用）"
-              >
-                左上
-              </button>
-              <span className="mx-1 text-gray-300">|</span>
-              <span className="text-xs text-gray-500">全ページ:</span>
-              <button
-                className="px-2 py-0.5 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
-                onClick={() => repackAcrossPages('right-top')}
-                title="全ページを跨いで詰め直す（A3横・余白15mm）"
-              >
-                詰め
-              </button>
-              <button
-                className="px-2 py-0.5 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-                onClick={() => unifyAllPagesSnippetSize()}
-                title="全ページのサイズを統一（1ページ目基準）"
-              >
-                サイズ
-              </button>
-            </div>
-          </>
-        )}
-
-        <div className="w-px h-6 bg-gray-200" />
-
-        {/* ズーム */}
-        <button className="toolbar-button" onClick={handleZoomOut} aria-label="縮小">
-          <ZoomOut className="w-5 h-5" />
-        </button>
-        <span className="text-sm min-w-[4rem] text-center" aria-live="polite">
-          {Math.round(zoom * 100)}%
-        </span>
-        <button className="toolbar-button" onClick={handleZoomIn} aria-label="拡大">
-          <ZoomIn className="w-5 h-5" />
-        </button>
+        {/* PDF出力 */}
         <button
-          className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
-          onClick={mode === 'layout' ? calculateLayoutFitZoom : calculateCropFitZoom}
-          title="画面に収める"
-        >
-          フィット
-        </button>
-
-        <div className="flex-1" />
-
-        {/* P3-006: 印刷用PDF出力 */}
-        <button
-          className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+          className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white font-bold rounded hover:bg-green-600 disabled:opacity-50"
           disabled={layoutPages.length === 0 || isExporting}
           onClick={handleExportPDF}
         >
@@ -903,6 +503,266 @@ export function LayoutView() {
           {isExporting ? '出力中...' : 'PDF出力'}
         </button>
       </div>
+
+      {/* ===== ツールバー下段: 配置モード用ツール ===== */}
+      {mode === 'layout' && (
+        <div className="bg-white rounded-lg shadow px-4 py-2 flex items-center gap-3 flex-wrap">
+          {/* 用紙グループ */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
+            <span className="text-xs text-gray-500 mr-1">用紙</span>
+            <select
+              className="border rounded px-1 py-0.5 text-sm"
+              value={newPageSize}
+              onChange={(e) => setNewPageSize(e.target.value as PaperSize)}
+            >
+              {Object.entries(PAPER_SIZES).map(([key]) => (
+                <option key={key} value={key}>{key}</option>
+              ))}
+            </select>
+            <select
+              className="border rounded px-1 py-0.5 text-sm"
+              value={newPageOrientation}
+              onChange={(e) => setNewPageOrientation(e.target.value as PaperOrientation)}
+            >
+              <option value="portrait">縦</option>
+              <option value="landscape">横</option>
+            </select>
+            <button
+              className="flex items-center gap-1 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+              onClick={handleAddPage}
+            >
+              <Plus className="w-3 h-3" />
+              追加
+            </button>
+          </div>
+
+          {/* 追加グループ */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
+            <span className="text-xs text-gray-500 mr-1">追加</span>
+            <button
+              className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => activeLayoutPageId && addTextElement(activeLayoutPageId, { x: 50, y: 50 })}
+              disabled={!activeLayoutPageId}
+              title="テキストを追加"
+            >
+              <Type className="w-3 h-3" />
+            </button>
+            <button
+              className="p-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => activeLayoutPageId && addShapeElement(activeLayoutPageId, 'rectangle', { x: 50, y: 50 })}
+              disabled={!activeLayoutPageId}
+              title="四角形"
+            >
+              <Square className="w-3 h-3" />
+            </button>
+            <button
+              className="p-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => activeLayoutPageId && addShapeElement(activeLayoutPageId, 'circle', { x: 50, y: 50 })}
+              disabled={!activeLayoutPageId}
+              title="円"
+            >
+              <Circle className="w-3 h-3" />
+            </button>
+            <button
+              className="p-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              onClick={() => activeLayoutPageId && addShapeElement(activeLayoutPageId, 'line', { x: 50, y: 50 })}
+              disabled={!activeLayoutPageId}
+              title="線"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* 余白グループ */}
+          {activeLayout && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
+              <span className="text-xs text-gray-500 mr-1">余白</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => updateLayoutPageMarginX(activeLayout.id, Math.max(0, (activeLayout.marginX ?? 15) - 5))}
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="text-xs w-4 text-center">{activeLayout.marginX ?? 15}</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => updateLayoutPageMarginX(activeLayout.id, (activeLayout.marginX ?? 15) + 5)}
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+              <span className="text-gray-300 mx-0.5">/</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => updateLayoutPageMarginY(activeLayout.id, Math.max(0, (activeLayout.marginY ?? 15) - 5))}
+              >
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <span className="text-xs w-4 text-center">{activeLayout.marginY ?? 15}</span>
+              <button
+                className="p-0.5 border rounded hover:bg-gray-100"
+                onClick={() => updateLayoutPageMarginY(activeLayout.id, (activeLayout.marginY ?? 15) + 5)}
+              >
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* サイズ揃えグループ */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded border border-blue-200">
+            <span className="text-xs text-blue-600 mr-1">揃える</span>
+            <button
+              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetWidthToLayout(activeLayout.id, selectedPlacedSnippet.size.width)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="幅を揃える（選択基準）"
+            >
+              幅
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetHeightToLayout(activeLayout.id, selectedPlacedSnippet.size.height)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="高さを揃える（選択基準）"
+            >
+              高さ
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="サイズを揃える（選択基準）"
+            >
+              両方
+            </button>
+          </div>
+
+          {/* 自動配置グループ */}
+          {activeLayout && activeLayout.snippets.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded border border-purple-200">
+              <span className="text-xs text-purple-600 mr-1">配置</span>
+              <button
+                className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
+                onClick={() => repackAllSnippets(activeLayout.id, 'right-top')}
+                title="右上から配置（縦書き向け）"
+              >
+                右上
+              </button>
+              <button
+                className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
+                onClick={() => repackAllSnippets(activeLayout.id, 'left-top')}
+                title="左上から配置（横書き向け）"
+              >
+                左上
+              </button>
+            </div>
+          )}
+
+          {/* 間隔グループ */}
+          {activeLayout && activeLayout.snippets.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
+              <span className="text-xs text-gray-500 mr-1">間隔</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = Math.max(0, pageGapX - 10); setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="text-xs w-4 text-center">{pageGapX}</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapX + 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+              <span className="text-gray-300 mx-0.5">/</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = Math.max(0, pageGapY - 10); setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
+                <ChevronUp className="w-3 h-3" />
+              </button>
+              <span className="text-xs w-4 text-center">{pageGapY}</span>
+              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapY + 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* 全ページ一括グループ */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-green-50 rounded border border-green-200">
+            <span className="text-xs text-green-600 mr-1">全ページ</span>
+            <button
+              className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+              onClick={() => repackAcrossPages(settings.writingDirection === 'vertical' ? 'right-top' : 'left-top')}
+              title="全ページを跨いで自動配置"
+            >
+              配置
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+              onClick={() => unifyAllPagesSnippetSize()}
+              title="全ページのサイズを統一"
+            >
+              サイズ
+            </button>
+          </div>
+
+          {/* 選択時ツール（2個以上選択時） */}
+          {activeLayout && selectedSnippetIds.length >= 2 && (
+            <>
+              <div className="w-px h-6 bg-gray-300" />
+              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded font-bold">
+                {selectedSnippetIds.length}個選択
+              </span>
+              <div className="flex items-center gap-1">
+                <button className="p-1 border rounded hover:bg-gray-50" onClick={() => alignSnippets(activeLayout.id, 'top')} title="上揃え">
+                  <AlignStartVertical className="w-3 h-3" />
+                </button>
+                <button className="p-1 border rounded hover:bg-gray-50" onClick={() => alignSnippets(activeLayout.id, 'bottom')} title="下揃え">
+                  <AlignEndVertical className="w-3 h-3" />
+                </button>
+                <button className="p-1 border rounded hover:bg-gray-50" onClick={() => alignSnippets(activeLayout.id, 'left')} title="左揃え">
+                  <AlignStartHorizontal className="w-3 h-3" />
+                </button>
+                <button className="p-1 border rounded hover:bg-gray-50" onClick={() => alignSnippets(activeLayout.id, 'right')} title="右揃え">
+                  <AlignEndHorizontal className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="flex items-center gap-1">
+                <button className="px-2 py-1 text-xs border rounded hover:bg-gray-50" onClick={() => unifySnippetSize(activeLayout.id, 'height')} title="高さ統一">
+                  高さ
+                </button>
+                <button className="px-2 py-1 text-xs border rounded hover:bg-gray-50" onClick={() => unifySnippetSize(activeLayout.id, 'width')} title="幅統一">
+                  幅
+                </button>
+              </div>
+              <div className="flex items-center gap-1">
+                <button className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300" onClick={() => packSnippets(activeLayout.id, 'horizontal')} title="横に詰める">
+                  横詰め
+                </button>
+                <button className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300" onClick={() => packSnippets(activeLayout.id, 'vertical')} title="縦に詰める">
+                  縦詰め
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* テキスト選択時 */}
+          {activeLayout && selectedTextElement && (
+            <>
+              <div className="w-px h-6 bg-gray-300" />
+              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">テキスト選択中</span>
+              <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded border border-green-200">
+                <button className="px-2 py-0.5 text-sm bg-green-500 text-white rounded" onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { fontSize: Math.max(8, selectedTextElement.fontSize - 2) })}>-</button>
+                <span className="text-xs w-10 text-center">{selectedTextElement.fontSize}px</span>
+                <button className="px-2 py-0.5 text-sm bg-green-500 text-white rounded" onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { fontSize: selectedTextElement.fontSize + 2 })}>+</button>
+                <div className="w-px h-4 bg-green-300 mx-1" />
+                <button
+                  className={`px-2 py-0.5 text-xs rounded ${selectedTextElement.writingMode === 'vertical' ? 'bg-green-600 text-white' : 'bg-white border'}`}
+                  onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { writingMode: 'vertical' })}
+                >縦</button>
+                <button
+                  className={`px-2 py-0.5 text-xs rounded ${selectedTextElement.writingMode === 'horizontal' ? 'bg-green-600 text-white' : 'bg-white border'}`}
+                  onClick={() => updateTextElement(activeLayout.id, selectedTextElement.id, { writingMode: 'horizontal' })}
+                >横</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* トリミングモード時は下段なし */}
 
       {/* メインエリア */}
       <div className="flex-1 flex gap-4 overflow-hidden">
