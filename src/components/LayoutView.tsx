@@ -84,6 +84,7 @@ export function LayoutView() {
     repackAllSnippets,
     repackAcrossPages,
     unifyAllPagesSnippetSize,
+    setActivePage,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -203,12 +204,17 @@ export function LayoutView() {
     return () => window.removeEventListener('resize', handleResize);
   }, [mode, calculateLayoutFitZoom, calculateCropFitZoom]);
 
-  // 再トリミングモード開始時に自動でトリミングモードに切り替え
+  // 再トリミングモード開始時に自動でトリミングモードに切り替え＆元ページへ移動
   useEffect(() => {
     if (reCropSnippetId) {
+      // 再トリミング対象のスニペットのソースページに自動移動
+      const snippet = snippets.find(s => s.id === reCropSnippetId);
+      if (snippet) {
+        setActivePage(snippet.sourcePageNumber);
+      }
       setMode('crop');
     }
-  }, [reCropSnippetId]);
+  }, [reCropSnippetId, snippets, setActivePage]);
 
   const handleAddPage = () => {
     addLayoutPage(newPageSize, newPageOrientation);
@@ -299,6 +305,25 @@ export function LayoutView() {
       setIsBatchProcessing(false);
     }
   }, [activeFile, selectedPageNumbers, addSnippet, cropZoom]); // 修正: 依存配列にcropZoomを追加
+
+  // トリミング完了時の自動サイズ揃え処理
+  const handleAutoUnifySize = useCallback(() => {
+    if (!activeLayoutPageId) return;
+
+    const activeLayout = layoutPages.find(p => p.id === activeLayoutPageId);
+    if (!activeLayout || activeLayout.snippets.length < 2) return;
+
+    // 最初のスニペットを基準にする
+    const firstSnippet = activeLayout.snippets[0];
+
+    if (settings.writingDirection === 'vertical') {
+      // 縦書き → 高さを揃える
+      applySnippetHeightToLayout(activeLayoutPageId, firstSnippet.size.height);
+    } else {
+      // 横書き → 幅を揃える
+      applySnippetWidthToLayout(activeLayoutPageId, firstSnippet.size.width);
+    }
+  }, [activeLayoutPageId, layoutPages, settings.writingDirection, applySnippetHeightToLayout, applySnippetWidthToLayout]);
 
   // PDF出力
   const handleExportPDF = useCallback(async () => {
@@ -412,6 +437,29 @@ export function LayoutView() {
         {/* P3-004: 用紙サイズ選択 */}
         {mode === 'layout' && (
           <>
+            {/* 書字方向切り替え */}
+            <select
+              className="border rounded px-2 py-1 text-sm bg-yellow-50"
+              value={settings.writingDirection}
+              onChange={(e) => {
+                const newDirection = e.target.value as 'vertical' | 'horizontal';
+                updateSettings({ writingDirection: newDirection });
+                // 用紙サイズも連動更新
+                if (newDirection === 'vertical') {
+                  setNewPageSize('A3');
+                  setNewPageOrientation('landscape');
+                } else {
+                  setNewPageSize('A4');
+                  setNewPageOrientation('portrait');
+                }
+              }}
+            >
+              <option value="vertical">縦書き</option>
+              <option value="horizontal">横書き</option>
+            </select>
+
+            <div className="w-px h-6 bg-gray-200" />
+
             <select
               className="border rounded px-2 py-1 text-sm"
               value={newPageSize}
@@ -920,6 +968,8 @@ export function LayoutView() {
                     onCropComplete={() => {
                       setReCropSnippet(null);
                       setMode('layout'); // 再トリミング完了後、配置モードに戻る
+                      // 自動サイズ揃え（少し遅延させてスニペット更新後に実行）
+                      setTimeout(handleAutoUnifySize, 100);
                     }}
                     updateSnippetId={reCropSnippetId}
                   />

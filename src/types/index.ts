@@ -174,6 +174,7 @@ export interface AppSettings {
   snapToGrid: boolean;
   defaultPaperSize: PaperSize;
   defaultPaperOrientation: PaperOrientation;
+  writingDirection: 'vertical' | 'horizontal'; // 縦書き or 横書き
 }
 
 // ストア関連の型

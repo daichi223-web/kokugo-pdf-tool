@@ -46,6 +46,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   snapToGrid: false,
   defaultPaperSize: 'A3',
   defaultPaperOrientation: 'landscape',
+  writingDirection: 'vertical', // デフォルトは縦書き（A3横）
 };
 
 interface Store extends AppState, AppActions {
@@ -500,15 +501,38 @@ export const useAppStore = create<Store>()(
         get().pushLayoutHistory();
 
         const snippet = get().snippets.find((s) => s.id === snippetId);
+        const targetPage = get().layoutPages.find((p) => p.id === pageId);
+        const settings = get().settings;
+
         // トリミングサイズを初期サイズとして使用
         // cropZoomで補正：トリミング時にユーザーが見ていた実際のサイズを使用
         const cropZoom = snippet?.cropZoom || 1;
-        const initialSize = snippet
+        let initialSize = snippet
           ? {
               width: snippet.cropArea.width * cropZoom,
               height: snippet.cropArea.height * cropZoom
             }
           : { width: 100, height: 100 };
+
+        // 既存のスニペットがあれば、書字方向に応じてサイズを自動調整
+        if (targetPage && targetPage.snippets.length > 0) {
+          const firstSnippet = targetPage.snippets[0];
+          if (settings.writingDirection === 'vertical') {
+            // 縦書き → 高さを揃える（アスペクト比維持）
+            const aspectRatio = initialSize.width / initialSize.height;
+            initialSize = {
+              width: firstSnippet.size.height * aspectRatio,
+              height: firstSnippet.size.height,
+            };
+          } else {
+            // 横書き → 幅を揃える（アスペクト比維持）
+            const aspectRatio = initialSize.height / initialSize.width;
+            initialSize = {
+              width: firstSnippet.size.width,
+              height: firstSnippet.size.width * aspectRatio,
+            };
+          }
+        }
 
         set((state) => ({
           layoutPages: state.layoutPages.map((page) =>
@@ -742,6 +766,21 @@ export const useAppStore = create<Store>()(
       // P2-001: ルビ括弧表記オプション
       // P3-005: グリッド/ガイド表示
       updateSettings: (newSettings: Partial<AppSettings>) => {
+        // 書字方向が変更された場合、用紙サイズも連動変更
+        if (newSettings.writingDirection !== undefined) {
+          const currentDirection = get().settings.writingDirection;
+          if (newSettings.writingDirection !== currentDirection) {
+            if (newSettings.writingDirection === 'vertical') {
+              // 縦書き → A3横
+              newSettings.defaultPaperSize = 'A3';
+              newSettings.defaultPaperOrientation = 'landscape';
+            } else {
+              // 横書き → A4縦
+              newSettings.defaultPaperSize = 'A4';
+              newSettings.defaultPaperOrientation = 'portrait';
+            }
+          }
+        }
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
         }));
