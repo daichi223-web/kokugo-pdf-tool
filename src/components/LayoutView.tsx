@@ -85,7 +85,6 @@ export function LayoutView() {
     repackAllSnippets,
     repackAcrossPages,
     unifyAllPagesSnippetSize,
-    arrangeAllSnippetsInGrid,
   } = useAppStore();
 
   const [layoutZoom, setLayoutZoom] = useState(1);
@@ -99,7 +98,6 @@ export function LayoutView() {
   // 再トリミング時の元のレイアウトページIDとスクロール位置を記憶
   const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
   const reCropSourceScrollTopRef = useRef<number>(0);
-  const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | 'auto'>('4x2');
   const [arrangeScope, setArrangeScope] = useState<'page' | 'all'>('page'); // 配置スコープ
   const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard'); // PDF出力画質
   const [isPrinting, setIsPrinting] = useState(false);
@@ -352,41 +350,6 @@ export function LayoutView() {
     repackAllSnippets(activeLayoutPageId);
   }, [autoRepack, activeLayoutPageId, repackAllSnippets]);
 
-  // グリッドパターンの設定
-  const GRID_PATTERNS: Record<string, { cols: number; rows: number; label: string }> = {
-    '4x2': { cols: 4, rows: 2, label: '4×2' },
-    '4x3': { cols: 4, rows: 3, label: '4×3' },
-    '3x2': { cols: 3, rows: 2, label: '3×2' },
-    '2x2': { cols: 2, rows: 2, label: '2×2' },
-    'auto': { cols: 0, rows: 0, label: '自動' },
-  };
-
-  // スニペット数から最適なグリッドを自動判定
-  const getAutoGrid = (count: number): { cols: number; rows: number } => {
-    if (count <= 2) return { cols: 2, rows: 1 };
-    if (count <= 4) return { cols: 2, rows: 2 };
-    if (count <= 6) return { cols: 3, rows: 2 };
-    if (count <= 8) return { cols: 4, rows: 2 };
-    if (count <= 12) return { cols: 4, rows: 3 };
-    return { cols: 4, rows: Math.ceil(count / 4) };
-  };
-
-  // 全て配置
-  const handleArrangeAll = useCallback(() => {
-    if (!activeLayoutPageId || snippets.length === 0) return;
-
-    let cols: number, rows: number;
-    if (gridPattern === 'auto') {
-      const auto = getAutoGrid(snippets.length);
-      cols = auto.cols;
-      rows = auto.rows;
-    } else {
-      cols = GRID_PATTERNS[gridPattern].cols;
-      rows = GRID_PATTERNS[gridPattern].rows;
-    }
-
-    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, pageGapX, pageGapY);
-  }, [activeLayoutPageId, snippets.length, gridPattern, pageGapX, pageGapY, arrangeAllSnippetsInGrid]);
 
   // PDF出力
   const handleExportPDF = useCallback(async () => {
@@ -759,76 +722,46 @@ export function LayoutView() {
             </div>
           )}
 
-          {/* 配置グループ（統合） */}
-          {snippets.length > 0 && (
+          {/* 詰めるグループ */}
+          {activeLayout && activeLayout.snippets.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-lg border-2 border-purple-300">
-              <span className="text-xs text-purple-700 font-bold">配置</span>
+              <span className="text-xs text-purple-700 font-bold">詰める</span>
               {/* スコープ選択 */}
               <div className="flex bg-purple-200 rounded p-0.5">
                 <button
                   className={`px-2 py-0.5 text-xs font-medium rounded ${arrangeScope === 'page' ? 'bg-purple-500 text-white' : 'text-purple-700 hover:bg-purple-300'}`}
                   onClick={() => setArrangeScope('page')}
-                  title="現在のページ内で配置"
+                  title="現在のページ内で詰める"
                 >
                   ページ
                 </button>
                 <button
                   className={`px-2 py-0.5 text-xs font-medium rounded ${arrangeScope === 'all' ? 'bg-purple-500 text-white' : 'text-purple-700 hover:bg-purple-300'}`}
                   onClick={() => setArrangeScope('all')}
-                  title="全ページを跨いで配置"
+                  title="全ページを跨いで詰める"
                 >
                   全体
                 </button>
               </div>
-              <span className="text-purple-300">|</span>
-              {/* グリッドパターン */}
-              <select
-                className="border border-purple-300 rounded px-1 py-0.5 text-xs bg-white"
-                value={gridPattern}
-                onChange={(e) => setGridPattern(e.target.value as typeof gridPattern)}
-              >
-                {Object.entries(GRID_PATTERNS).map(([key, value]) => (
-                  <option key={key} value={key}>{value.label}</option>
-                ))}
-              </select>
-              {/* 配置ボタン */}
+              {/* 詰めるボタン */}
               <button
-                className="px-3 py-1 text-xs bg-purple-500 text-white rounded font-bold hover:bg-purple-600 disabled:opacity-50"
+                className="px-3 py-1 text-xs bg-purple-500 text-white rounded font-bold hover:bg-purple-600"
                 onClick={() => {
                   if (arrangeScope === 'all') {
-                    // 全体配置
                     repackAcrossPages();
-                  } else if (activeLayoutPageId) {
-                    // ページ内グリッド配置
-                    handleArrangeAll();
+                  } else {
+                    repackAllSnippets(activeLayout.id);
                   }
                 }}
-                disabled={arrangeScope === 'page' && !activeLayoutPageId}
-                title={arrangeScope === 'all' ? '全ページを跨いで自動配置' : '現在のページにグリッド配置'}
+                title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で詰める`}
               >
-                自動配置
+                実行
               </button>
-              {/* 詰めるボタン */}
-              {activeLayout && activeLayout.snippets.length > 0 && (
-                <button
-                  className="px-2 py-1 text-xs bg-purple-400 text-white rounded hover:bg-purple-500"
-                  onClick={() => {
-                    if (arrangeScope === 'all') {
-                      repackAcrossPages();
-                    } else {
-                      repackAllSnippets(activeLayout.id);
-                    }
-                  }}
-                  title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で詰める`}
-                >
-                  詰める
-                </button>
-              )}
               {/* 自動トグル */}
               <button
                 className={`px-2 py-1 text-xs rounded ${autoRepack ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
                 onClick={() => setAutoRepack(!autoRepack)}
-                title={autoRepack ? '自動詰め: オン' : '自動詰め: オフ'}
+                title={autoRepack ? '自動詰め: オン（トリミング後に自動で詰める）' : '自動詰め: オフ'}
               >
                 自動{autoRepack ? '✓' : ''}
               </button>

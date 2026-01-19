@@ -3,8 +3,17 @@
 // P3-001: トリミング機能 - スニペット管理
 // =============================================================================
 
-import { Trash2, Move, Crop, CornerDownLeft } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, Move, Crop, CornerDownLeft, Grid } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
+
+// グリッドパターン定義
+const GRID_PATTERNS: Record<string, { cols: number; rows: number; label: string }> = {
+  '4x2': { cols: 4, rows: 2, label: '4×2' },
+  '4x3': { cols: 4, rows: 3, label: '4×3' },
+  '3x2': { cols: 3, rows: 2, label: '3×2' },
+  '2x2': { cols: 2, rows: 2, label: '2×2' },
+};
 
 export function SnippetList() {
   const {
@@ -19,7 +28,12 @@ export function SnippetList() {
     setActivePage,
     activeFileId,
     toggleSnippetPageBreak,
+    arrangeAllSnippetsInGrid,
+    layoutPages,
+    settings,
   } = useAppStore();
+
+  const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2'>('4x2');
 
   // スニペットを選択した時にソースファイル・ページもアクティブに設定
   const handleSnippetClick = (snippet: typeof snippets[0]) => {
@@ -43,11 +57,47 @@ export function SnippetList() {
     }
   };
 
+  // 自動配置を実行
+  const handleAutoArrange = () => {
+    if (!activeLayoutPageId || snippets.length === 0) return;
+    const { cols, rows } = GRID_PATTERNS[gridPattern];
+    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, 0, 0);
+  };
+
+  // レイアウトページがあるか
+  const hasLayoutPage = layoutPages.length > 0;
+
   return (
     <div className="w-48 bg-white rounded-lg shadow overflow-hidden flex flex-col">
       <div className="px-3 py-2 bg-gray-50 border-b font-medium text-sm">
         スニペット ({snippets.length})
       </div>
+
+      {/* 自動配置ボタン */}
+      {snippets.length > 0 && hasLayoutPage && (
+        <div className="px-2 py-2 border-b bg-purple-50">
+          <div className="flex items-center gap-1">
+            <select
+              className="flex-1 border rounded px-1 py-1 text-xs"
+              value={gridPattern}
+              onChange={(e) => setGridPattern(e.target.value as typeof gridPattern)}
+            >
+              {Object.entries(GRID_PATTERNS).map(([key, value]) => (
+                <option key={key} value={key}>{value.label}</option>
+              ))}
+            </select>
+            <button
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
+              onClick={handleAutoArrange}
+              disabled={!activeLayoutPageId}
+              title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で自動配置`}
+            >
+              <Grid className="w-3 h-3" />
+              配置
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto p-2">
         {snippets.length === 0 ? (
