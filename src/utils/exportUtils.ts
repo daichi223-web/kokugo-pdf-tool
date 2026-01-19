@@ -339,8 +339,9 @@ export async function exportLayoutToPDF(
 
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
-    // 余白設定（15mm）
-    const margin = mmToPx(15, pdfDpi);
+    // ページごとの余白設定を使用（デフォルト15mm）
+    const marginX = mmToPx(layoutPage.marginX ?? layoutPage.margin ?? 15, pdfDpi);
+    const marginY = mmToPx(layoutPage.marginY ?? layoutPage.margin ?? 15, pdfDpi);
 
     for (const placedSnippet of layoutPage.snippets) {
       const snippet = snippets.find((s) => s.id === placedSnippet.snippetId);
@@ -354,10 +355,10 @@ export async function exportLayoutToPDF(
           : await pdfDoc.embedJpg(processed.data);
 
         // 配置位置とサイズを計算（96 DPIピクセル → 72 DPIポイント）
-        const x = margin + placedSnippet.position.x * dpiRatio;
+        const x = marginX + placedSnippet.position.x * dpiRatio;
         const width = placedSnippet.size.width * dpiRatio;
         const height = placedSnippet.size.height * dpiRatio;
-        const y = pageHeight - margin - placedSnippet.position.y * dpiRatio - height;
+        const y = pageHeight - marginY - placedSnippet.position.y * dpiRatio - height;
 
         page.drawImage(image, {
           x,
@@ -382,10 +383,10 @@ export async function exportLayoutToPDF(
           const image = await pdfDoc.embedPng(imageBytes);
 
           // 配置位置とサイズを計算
-          const x = margin + textElement.position.x * dpiRatio;
+          const x = marginX + textElement.position.x * dpiRatio;
           const width = textElement.size.width * dpiRatio;
           const height = textElement.size.height * dpiRatio;
-          const y = pageHeight - margin - textElement.position.y * dpiRatio - height;
+          const y = pageHeight - marginY - textElement.position.y * dpiRatio - height;
 
           page.drawImage(image, { x, y, width, height });
         } catch (error) {
@@ -398,10 +399,10 @@ export async function exportLayoutToPDF(
     if (layoutPage.shapeElements) {
       for (const shape of layoutPage.shapeElements) {
         try {
-          const x = margin + shape.position.x * dpiRatio;
+          const x = marginX + shape.position.x * dpiRatio;
           const width = shape.size.width * dpiRatio;
           const height = shape.size.height * dpiRatio;
-          const y = pageHeight - margin - shape.position.y * dpiRatio - height;
+          const y = pageHeight - marginY - shape.position.y * dpiRatio - height;
 
           const strokeColor = hexToRgb(shape.strokeColor);
           const fillColor = shape.fillColor !== 'transparent' ? hexToRgb(shape.fillColor) : null;
