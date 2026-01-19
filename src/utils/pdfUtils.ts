@@ -12,8 +12,85 @@ import type { ImageEnhancement } from '../types';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 /**
+ * オートレベル補正（ヒストグラムストレッチ）
+ * 白を白に、黒を黒に調整
+ */
+function applyAutoLevels(imageData: ImageData): void {
+  const data = imageData.data;
+  let minVal = 255;
+  let maxVal = 0;
+
+  // 最小・最大輝度を検出
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+    if (gray < minVal) minVal = gray;
+    if (gray > maxVal) maxVal = gray;
+  }
+
+  // 範囲が狭すぎる場合はスキップ
+  if (maxVal - minVal < 10) return;
+
+  // ヒストグラムストレッチ
+  const range = maxVal - minVal;
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = Math.min(255, Math.max(0, ((data[i] - minVal) / range) * 255));
+    data[i + 1] = Math.min(255, Math.max(0, ((data[i + 1] - minVal) / range) * 255));
+    data[i + 2] = Math.min(255, Math.max(0, ((data[i + 2] - minVal) / range) * 255));
+  }
+}
+
+/**
+ * アンシャープマスク（エッジ強調）
+ * 文字のエッジをシャープにする
+ */
+function applyUnsharpMask(imageData: ImageData, amount: number = 0.5): void {
+  const data = imageData.data;
+  const width = imageData.width;
+  const height = imageData.height;
+  const original = new Uint8ClampedArray(data);
+
+  // 3x3カーネルによるボケ検出と強調
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = (y * width + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        // 周囲の平均を計算
+        const blur = (
+          original[((y - 1) * width + (x - 1)) * 4 + c] +
+          original[((y - 1) * width + x) * 4 + c] +
+          original[((y - 1) * width + (x + 1)) * 4 + c] +
+          original[(y * width + (x - 1)) * 4 + c] +
+          original[(y * width + x) * 4 + c] +
+          original[(y * width + (x + 1)) * 4 + c] +
+          original[((y + 1) * width + (x - 1)) * 4 + c] +
+          original[((y + 1) * width + x) * 4 + c] +
+          original[((y + 1) * width + (x + 1)) * 4 + c]
+        ) / 9;
+
+        // 差分を強調
+        const diff = original[idx + c] - blur;
+        data[idx + c] = Math.min(255, Math.max(0, original[idx + c] + diff * amount));
+      }
+    }
+  }
+}
+
+/**
+ * グレースケール変換
+ */
+function applyGrayscale(imageData: ImageData): void {
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    data[i] = gray;
+    data[i + 1] = gray;
+    data[i + 2] = gray;
+  }
+}
+
+/**
  * 画像補正を適用
- * コントラスト・明るさ・シャープ化
+ * コントラスト・明るさ・シャープ化・オートレベル・アンシャープマスク・グレースケール
  */
 export function applyImageEnhancement(
   canvas: HTMLCanvasElement,
@@ -23,7 +100,15 @@ export function applyImageEnhancement(
   if (!ctx) return canvas;
 
   // フィルターが必要ない場合はそのまま返す
-  if (enhancement.contrast === 1.0 && enhancement.brightness === 1.0 && !enhancement.sharpness) {
+  const needsProcessing =
+    enhancement.contrast !== 1.0 ||
+    enhancement.brightness !== 1.0 ||
+    enhancement.sharpness ||
+    enhancement.autoLevels ||
+    enhancement.unsharpMask ||
+    enhancement.grayscale;
+
+  if (!needsProcessing) {
     return canvas;
   }
 
@@ -53,6 +138,31 @@ export function applyImageEnhancement(
 
   // 元の画像を描画
   enhancedCtx.drawImage(canvas, 0, 0);
+
+  // フィルターをリセット（ピクセル操作のため）
+  enhancedCtx.filter = 'none';
+
+  // ピクセル単位の処理が必要な場合
+  if (enhancement.autoLevels || enhancement.unsharpMask || enhancement.grayscale) {
+    const imageData = enhancedCtx.getImageData(0, 0, enhancedCanvas.width, enhancedCanvas.height);
+
+    // グレースケール変換（最初に実行）
+    if (enhancement.grayscale) {
+      applyGrayscale(imageData);
+    }
+
+    // オートレベル補正
+    if (enhancement.autoLevels) {
+      applyAutoLevels(imageData);
+    }
+
+    // アンシャープマスク（最後に実行）
+    if (enhancement.unsharpMask) {
+      applyUnsharpMask(imageData, 0.7); // 強度0.7
+    }
+
+    enhancedCtx.putImageData(imageData, 0, 0);
+  }
 
   return enhancedCanvas;
 }

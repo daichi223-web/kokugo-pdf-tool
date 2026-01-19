@@ -131,6 +131,9 @@ export interface Size {
 export type PaperSize = 'A4' | 'B4' | 'A3';
 export type PaperOrientation = 'portrait' | 'landscape';
 
+// 配置基準点（間隔・余白調整時の固定位置）
+export type LayoutAnchor = 'right-top' | 'left-top' | 'center';
+
 export const PAPER_SIZES: Record<PaperSize, { width: number; height: number; label: string }> = {
   A4: { width: 210, height: 297, label: 'A4 (210×297mm)' },
   B4: { width: 257, height: 364, label: 'B4 (257×364mm)' },
@@ -172,6 +175,9 @@ export interface ImageEnhancement {
   contrast: number;    // コントラスト 0.5〜2.0（1.0がデフォルト）
   brightness: number;  // 明るさ 0.5〜1.5（1.0がデフォルト）
   sharpness: boolean;  // シャープ化（アンチエイリアス無効）
+  autoLevels: boolean; // オートレベル補正（白を白に、黒を黒に）
+  unsharpMask: boolean; // アンシャープマスク（エッジ強調）
+  grayscale: boolean;  // グレースケール変換
 }
 
 // 設定関連の型
@@ -185,6 +191,7 @@ export interface AppSettings {
   writingDirection: 'vertical' | 'horizontal'; // 縦書き or 横書き
   pdfRenderScale: number; // PDF読み込み時の解像度スケール（2〜4、デフォルト2）
   imageEnhancement: ImageEnhancement; // 画像補正設定
+  layoutAnchor: LayoutAnchor; // 配置基準点（間隔・余白調整時の固定位置）
 }
 
 // ストア関連の型

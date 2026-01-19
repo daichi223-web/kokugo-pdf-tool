@@ -348,9 +348,9 @@ export function LayoutView() {
   // 自動全詰め処理（トリミング後に実行）
   const handleAutoRepack = useCallback(() => {
     if (!autoRepack || !activeLayoutPageId) return;
-    const basis = settings.writingDirection === 'vertical' ? 'right-top' : 'left-top';
+    const basis = settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top';
     repackAllSnippets(activeLayoutPageId, basis);
-  }, [autoRepack, activeLayoutPageId, settings.writingDirection, repackAllSnippets]);
+  }, [autoRepack, activeLayoutPageId, settings.layoutAnchor, repackAllSnippets]);
 
   // グリッドパターンの設定
   const GRID_PATTERNS: Record<string, { cols: number; rows: number; label: string }> = {
@@ -465,7 +465,7 @@ export function LayoutView() {
                   : 'text-amber-700 hover:bg-amber-300'
               }`}
               onClick={() => {
-                updateSettings({ writingDirection: 'vertical' });
+                updateSettings({ writingDirection: 'vertical', layoutAnchor: 'right-top' });
                 setNewPageSize('A3');
                 setNewPageOrientation('landscape');
               }}
@@ -479,12 +479,52 @@ export function LayoutView() {
                   : 'text-amber-700 hover:bg-amber-300'
               }`}
               onClick={() => {
-                updateSettings({ writingDirection: 'horizontal' });
+                updateSettings({ writingDirection: 'horizontal', layoutAnchor: 'left-top' });
                 setNewPageSize('A4');
                 setNewPageOrientation('portrait');
               }}
             >
               横書き
+            </button>
+          </div>
+        </div>
+
+        {/* 配置基準点 */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-indigo-50 rounded border border-indigo-300">
+          <span className="text-xs text-indigo-700 font-medium">基準:</span>
+          <div className="flex bg-indigo-200 rounded p-0.5">
+            <button
+              className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
+                settings.layoutAnchor === 'right-top'
+                  ? 'bg-indigo-500 text-white shadow'
+                  : 'text-indigo-700 hover:bg-indigo-300'
+              }`}
+              onClick={() => updateSettings({ layoutAnchor: 'right-top' })}
+              title="右上固定（縦書き向け）"
+            >
+              右上
+            </button>
+            <button
+              className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
+                settings.layoutAnchor === 'center'
+                  ? 'bg-indigo-500 text-white shadow'
+                  : 'text-indigo-700 hover:bg-indigo-300'
+              }`}
+              onClick={() => updateSettings({ layoutAnchor: 'center' })}
+              title="中央固定"
+            >
+              中央
+            </button>
+            <button
+              className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
+                settings.layoutAnchor === 'left-top'
+                  ? 'bg-indigo-500 text-white shadow'
+                  : 'text-indigo-700 hover:bg-indigo-300'
+              }`}
+              onClick={() => updateSettings({ layoutAnchor: 'left-top' })}
+              title="左上固定（横書き向け）"
+            >
+              左上
             </button>
           </div>
         </div>
@@ -618,16 +658,40 @@ export function LayoutView() {
             <span className="text-xs w-6 text-center">{settings.imageEnhancement?.brightness?.toFixed(2) ?? '1.00'}</span>
           </div>
           <button
-            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.sharpness ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.autoLevels ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
             onClick={() => updateSettings({
               imageEnhancement: {
                 ...settings.imageEnhancement,
-                sharpness: !settings.imageEnhancement?.sharpness,
+                autoLevels: !settings.imageEnhancement?.autoLevels,
               },
             })}
-            title="シャープ化"
+            title="オートレベル（白を白に、黒を黒に）"
+          >
+            自動
+          </button>
+          <button
+            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.unsharpMask ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+            onClick={() => updateSettings({
+              imageEnhancement: {
+                ...settings.imageEnhancement,
+                unsharpMask: !settings.imageEnhancement?.unsharpMask,
+              },
+            })}
+            title="アンシャープマスク（エッジ強調）"
           >
             鮮明
+          </button>
+          <button
+            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.grayscale ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+            onClick={() => updateSettings({
+              imageEnhancement: {
+                ...settings.imageEnhancement,
+                grayscale: !settings.imageEnhancement?.grayscale,
+              },
+            })}
+            title="グレースケール変換"
+          >
+            白黒
           </button>
           <button
             className="px-1.5 py-0.5 text-xs bg-gray-300 rounded hover:bg-gray-400"
@@ -636,6 +700,9 @@ export function LayoutView() {
                 contrast: 1.0,
                 brightness: 1.0,
                 sharpness: false,
+                autoLevels: false,
+                unsharpMask: false,
+                grayscale: false,
               },
             })}
             title="リセット"
@@ -887,10 +954,10 @@ export function LayoutView() {
               <span className="text-xs text-purple-600 mr-1">配置</span>
               <button
                 className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                onClick={() => repackAllSnippets(activeLayout.id, settings.writingDirection === 'vertical' ? 'right-top' : 'left-top')}
-                title={settings.writingDirection === 'vertical' ? '右上から配置（縦書き）' : '左上から配置（横書き）'}
+                onClick={() => repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top')}
+                title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}から配置`}
               >
-                {settings.writingDirection === 'vertical' ? '右上' : '左上'}
+                {settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}
               </button>
             </div>
           )}
@@ -922,7 +989,7 @@ export function LayoutView() {
             <span className="text-xs text-green-600 mr-1">全ページ</span>
             <button
               className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-              onClick={() => repackAcrossPages(settings.writingDirection === 'vertical' ? 'right-top' : 'left-top')}
+              onClick={() => repackAcrossPages(settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top')}
               title="全ページを跨いで自動配置"
             >
               配置
