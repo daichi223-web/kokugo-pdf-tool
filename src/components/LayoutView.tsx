@@ -798,7 +798,7 @@ export function LayoutView() {
                 onClick={() => {
                   if (arrangeScope === 'all') {
                     // 全体配置
-                    repackAcrossPages(settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
+                    repackAcrossPages();
                   } else if (activeLayoutPageId) {
                     // ページ内グリッド配置
                     handleArrangeAll();
@@ -815,7 +815,7 @@ export function LayoutView() {
                   className="px-2 py-1 text-xs bg-purple-400 text-white rounded hover:bg-purple-500"
                   onClick={() => {
                     if (arrangeScope === 'all') {
-                      repackAcrossPages(settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
+                      repackAcrossPages();
                     } else {
                       repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
                     }

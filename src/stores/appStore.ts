@@ -1130,8 +1130,9 @@ export const useAppStore = create<Store>()(
       // 全スニペットをグリッド配置（スニペットリストから一括配置）
       // autoCreatePages: trueの場合、グリッド容量を超えたら自動でページを追加
       // pageBreakBeforeフラグがあるスニペットは強制的に次のページに配置
+      // layoutAnchor設定に応じて配置方向を変更
       arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX: number = 0, gapY: number = 0, autoCreatePages: boolean = true) => {
-        const { layoutPages, snippets } = get();
+        const { layoutPages, snippets, settings } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || snippets.length === 0) return;
 
@@ -1197,13 +1198,34 @@ export const useAppStore = create<Store>()(
             positionInPage = 0;
           }
 
-          const col = cols - 1 - (positionInPage % cols); // 右から左へ
+          // 基準点に応じて列位置を計算
+          let col: number;
+          if (settings.layoutAnchor === 'left-top') {
+            // 左上基準: 左から右へ
+            col = positionInPage % cols;
+          } else if (settings.layoutAnchor === 'center') {
+            // 中央基準: 左から右へ（後で中央寄せ）
+            col = positionInPage % cols;
+          } else {
+            // 右上基準: 右から左へ
+            col = cols - 1 - (positionInPage % cols);
+          }
           const row = Math.floor(positionInPage / cols);
+
+          // X座標を計算（中央基準の場合は後で調整）
+          let x = col * (cellWidth + gapX);
+
+          // 中央基準の場合、行全体を中央寄せ
+          if (settings.layoutAnchor === 'center') {
+            const rowWidth = cols * cellWidth + (cols - 1) * gapX;
+            const offsetX = (availableWidth - rowWidth) / 2;
+            x += offsetX;
+          }
 
           pagesData[currentPageIndex].push({
             snippetId: snippet.id,
             position: {
-              x: col * (cellWidth + gapX),
+              x,
               y: row * (cellHeight + gapY),
             },
             size: {
@@ -1641,8 +1663,9 @@ export const useAppStore = create<Store>()(
 
       // 全ページを跨いで詰め直す
       // 最初のページの設定を引き継いで全スニペットを詰め直し、空ページは削除
-      repackAcrossPages: (basis: 'right-top' | 'left-top') => {
-        const { layoutPages, snippets: allSnippets } = get();
+      // 全ページを跨いで詰め直す（settings.layoutAnchorを使用）
+      repackAcrossPages: () => {
+        const { layoutPages, snippets: allSnippets, settings } = get();
         if (layoutPages.length === 0) return;
 
         // Undo用に履歴を保存
@@ -1685,59 +1708,116 @@ export const useAppStore = create<Store>()(
         const availableWidth = paperWidthPx - marginXPx * 2;
         const availableHeight = paperHeightPx - marginYPx * 2;
 
-        // ページごとにスニペットを振り分け
-        const pagesData: { snippets: { snippetId: string; size: Size; position: Position; rotation: number }[] }[] = [];
-        let currentPageSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
+        // 基準点を取得
+        const anchor = settings.layoutAnchor;
+
+        // まず行ごとにスニペットをグループ化（位置計算用）
+        type RowData = { snippets: { snippetId: string; size: Size; rotation: number }[]; y: number; height: number };
+        const pagesRows: RowData[][] = [[]];
+        let currentPageIndex = 0;
         let currentY = 0;
         let currentRowHeight = 0;
-        let currentRowUsedWidth = 0;
+        let currentRowSnippets: { snippetId: string; size: Size; rotation: number }[] = [];
 
         allPlacedSnippets.forEach((snippet) => {
           const snipWidth = snippet.size.width;
           const snipHeight = snippet.size.height;
 
+          // 現在の行の幅を計算
+          const currentRowWidth = currentRowSnippets.reduce((sum, s) => sum + s.size.width, 0);
+
           // 現在の行に入るか確認
-          if (currentRowUsedWidth + snipWidth > availableWidth && currentRowUsedWidth > 0) {
+          if (currentRowWidth + snipWidth > availableWidth && currentRowSnippets.length > 0) {
+            // 行を確定
+            pagesRows[currentPageIndex].push({
+              snippets: currentRowSnippets,
+              y: currentY,
+              height: currentRowHeight,
+            });
             currentY += currentRowHeight;
             currentRowHeight = 0;
-            currentRowUsedWidth = 0;
+            currentRowSnippets = [];
           }
 
           // 現在のページに入るか確認
           if (currentY + snipHeight > availableHeight) {
-            // 次のページへ
-            if (currentPageSnippets.length > 0) {
-              pagesData.push({ snippets: currentPageSnippets });
+            // 現在の行があれば確定
+            if (currentRowSnippets.length > 0) {
+              pagesRows[currentPageIndex].push({
+                snippets: currentRowSnippets,
+                y: currentY,
+                height: currentRowHeight,
+              });
             }
-            currentPageSnippets = [];
+            // 次のページへ
+            currentPageIndex++;
+            pagesRows[currentPageIndex] = [];
             currentY = 0;
             currentRowHeight = 0;
-            currentRowUsedWidth = 0;
+            currentRowSnippets = [];
           }
 
-          // 配置位置を計算
-          let x: number;
-          if (basis === 'right-top') {
-            x = availableWidth - currentRowUsedWidth - snipWidth;
-          } else {
-            x = currentRowUsedWidth;
-          }
-
-          currentPageSnippets.push({
+          currentRowSnippets.push({
             snippetId: snippet.snippetId,
             size: snippet.size,
-            position: { x, y: currentY },
             rotation: 0,
           });
-
-          currentRowUsedWidth += snipWidth;
           currentRowHeight = Math.max(currentRowHeight, snipHeight);
         });
 
-        // 最後のページを追加
-        if (currentPageSnippets.length > 0) {
-          pagesData.push({ snippets: currentPageSnippets });
+        // 最後の行を確定
+        if (currentRowSnippets.length > 0) {
+          pagesRows[currentPageIndex].push({
+            snippets: currentRowSnippets,
+            y: currentY,
+            height: currentRowHeight,
+          });
         }
+
+        // 行データから配置位置を計算
+        const pagesData: { snippets: { snippetId: string; size: Size; position: Position; rotation: number }[] }[] = [];
+
+        pagesRows.forEach((rows) => {
+          const pageSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
+
+          rows.forEach((row) => {
+            const rowWidth = row.snippets.reduce((sum, s) => sum + s.size.width, 0);
+
+            let currentX: number;
+            if (anchor === 'right-top') {
+              // 右上基準: 右端から左へ
+              currentX = availableWidth;
+            } else if (anchor === 'center') {
+              // 中央基準: 中央から配置
+              currentX = (availableWidth - rowWidth) / 2;
+            } else {
+              // 左上基準: 左端から右へ
+              currentX = 0;
+            }
+
+            row.snippets.forEach((snippet) => {
+              let x: number;
+              if (anchor === 'right-top') {
+                currentX -= snippet.size.width;
+                x = currentX;
+              } else {
+                x = currentX;
+                currentX += snippet.size.width;
+              }
+
+              pageSnippets.push({
+                snippetId: snippet.snippetId,
+                size: snippet.size,
+                position: { x, y: row.y },
+                rotation: snippet.rotation,
+              });
+            });
+          });
+
+          if (pageSnippets.length > 0) {
+            pagesData.push({ snippets: pageSnippets });
+          }
+        });
 
         // 新しいページ構成を作成（最初のページの設定を引き継ぐ）
         const newLayoutPages: LayoutPage[] = pagesData.map((pageData, index) => ({

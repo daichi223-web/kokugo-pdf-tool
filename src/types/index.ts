@@ -300,7 +300,7 @@ export interface AppActions {
   packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => void;
   repackAllSnippets: (pageId: string, basis: 'right-top' | 'left-top') => void;
-  repackAcrossPages: (basis: 'right-top' | 'left-top') => void;
+  repackAcrossPages: () => void;
   unifyAllPagesSnippetSize: () => void;
 
   // テキスト要素操作
