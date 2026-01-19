@@ -1181,12 +1181,15 @@ export const useAppStore = create<Store>()(
         // 1ページあたりの容量
         const capacity = cols * rows;
 
+        // 元PDFのページ番号順でソート
+        const sortedSnippets = [...snippets].sort((a, b) => a.sourcePageNumber - b.sourcePageNumber);
+
         // ページごとにスニペットを分配（pageBreakBeforeを考慮）
         const pagesData: PlacedSnippet[][] = [[]];
         let currentPageIndex = 0;
         let positionInPage = 0;
 
-        snippets.forEach((snippet) => {
+        sortedSnippets.forEach((snippet) => {
           // 改ページフラグがある場合、または容量超過の場合は次のページへ
           if (snippet.pageBreakBefore && pagesData[currentPageIndex].length > 0) {
             currentPageIndex++;
@@ -1570,10 +1573,11 @@ export const useAppStore = create<Store>()(
       },
 
       // 全スニペットを詰め直す（トリミング後の再配置用）
-      // basis: 'right-top' = 縦書き用（右上基準）, 'left-top' = 横書き用（左上基準）
+      // settings.layoutAnchorを使用（right-top/center/left-top）
+      // 元PDFのページ番号順でソート
       // 余白内に収まる範囲でスマートに詰める（シェルフ式ビンパッキング）
-      repackAllSnippets: (pageId: string, basis: 'right-top' | 'left-top') => {
-        const { layoutPages } = get();
+      repackAllSnippets: (pageId: string) => {
+        const { layoutPages, snippets: allSnippets, settings } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || page.snippets.length === 0) return;
 
@@ -1582,68 +1586,92 @@ export const useAppStore = create<Store>()(
 
         // 用紙サイズと余白を取得
         const paperDimensions = getPaperDimensions(page.paperSize, page.orientation);
-        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
-        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
+        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96);
+        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96);
         const paperWidthPx = mmToPx(paperDimensions.width, 96);
         const paperHeightPx = mmToPx(paperDimensions.height, 96);
         const availableWidth = paperWidthPx - marginX * 2;
         const availableHeight = paperHeightPx - marginY * 2;
 
-        // スニペットを作成順（ID順）でソート
-        // snippetsストアから元のスニペットの順序を取得
-        const { snippets: allSnippets } = get();
-        const snippetOrder = new Map<string, number>();
-        allSnippets.forEach((s, index) => {
-          snippetOrder.set(s.id, index);
+        // 元PDFのページ番号順でソート
+        const snippetPageOrder = new Map<string, number>();
+        allSnippets.forEach((s) => {
+          snippetPageOrder.set(s.id, s.sourcePageNumber);
         });
 
         const snippetsToPlace = [...page.snippets].sort((a, b) => {
-          const orderA = snippetOrder.get(a.snippetId) ?? 0;
-          const orderB = snippetOrder.get(b.snippetId) ?? 0;
-          return orderA - orderB; // 作成順（ID順）
+          const pageA = snippetPageOrder.get(a.snippetId) ?? 0;
+          const pageB = snippetPageOrder.get(b.snippetId) ?? 0;
+          return pageA - pageB; // 元PDFのページ番号順
         });
 
-        // 行ごとに配置（シンプルな順次配置）
-        // ※位置は余白からの相対座標で保存（LayoutCanvasで余白分を加算して表示）
-        const positionMap = new Map<string, { x: number; y: number }>();
+        // 基準点
+        const anchor = settings.layoutAnchor;
 
-        let currentY = 0;            // 現在の行のY位置（余白からの相対）
-        let currentRowHeight = 0;    // 現在の行の高さ
-        let currentRowUsedWidth = 0; // 現在の行の使用幅
+        // まず行ごとにグループ化
+        type RowData = { snippets: typeof snippetsToPlace; y: number; height: number };
+        const rows: RowData[] = [];
+        let currentRowSnippets: typeof snippetsToPlace = [];
+        let currentY = 0;
+        let currentRowHeight = 0;
+        let currentRowWidth = 0;
 
-        // 各スニペットを順番に配置
         snippetsToPlace.forEach((snippet) => {
           const snipWidth = snippet.size.width;
           const snipHeight = snippet.size.height;
 
           // 現在の行に入るか確認
-          if (currentRowUsedWidth + snipWidth > availableWidth && currentRowUsedWidth > 0) {
-            // 入らない場合は次の行へ
+          if (currentRowWidth + snipWidth > availableWidth && currentRowSnippets.length > 0) {
+            // 行を確定
+            rows.push({ snippets: currentRowSnippets, y: currentY, height: currentRowHeight });
             currentY += currentRowHeight;
+            currentRowSnippets = [];
             currentRowHeight = 0;
-            currentRowUsedWidth = 0;
+            currentRowWidth = 0;
           }
 
-          // 用紙の下端を超えないか確認（余白内に収まるか）
-          if (currentY + snipHeight > availableHeight) {
-            // 用紙に収まらない場合は元の位置を維持
-            positionMap.set(snippet.snippetId, { ...snippet.position });
+          // 用紙の下端を超えないか確認
+          if (currentY + snipHeight > availableHeight && currentRowSnippets.length === 0) {
+            // 収まらない（この行の最初のスニペットすら入らない）
             return;
           }
 
-          // 配置位置を計算（余白からの相対座標）
-          let x: number;
-          if (basis === 'right-top') {
-            // 右から配置: 配置可能幅 - 使用済み幅 - このスニペットの幅
-            x = availableWidth - currentRowUsedWidth - snipWidth;
+          currentRowSnippets.push(snippet);
+          currentRowWidth += snipWidth;
+          currentRowHeight = Math.max(currentRowHeight, snipHeight);
+        });
+
+        // 最後の行を確定
+        if (currentRowSnippets.length > 0) {
+          rows.push({ snippets: currentRowSnippets, y: currentY, height: currentRowHeight });
+        }
+
+        // 行データから配置位置を計算
+        const positionMap = new Map<string, { x: number; y: number }>();
+
+        rows.forEach((row) => {
+          const rowWidth = row.snippets.reduce((sum, s) => sum + s.size.width, 0);
+
+          let currentX: number;
+          if (anchor === 'right-top') {
+            currentX = availableWidth;
+          } else if (anchor === 'center') {
+            currentX = (availableWidth - rowWidth) / 2;
           } else {
-            // 左から配置: 使用済み幅
-            x = currentRowUsedWidth;
+            currentX = 0;
           }
 
-          positionMap.set(snippet.snippetId, { x, y: currentY });
-          currentRowUsedWidth += snipWidth;
-          currentRowHeight = Math.max(currentRowHeight, snipHeight);
+          row.snippets.forEach((snippet) => {
+            let x: number;
+            if (anchor === 'right-top') {
+              currentX -= snippet.size.width;
+              x = currentX;
+            } else {
+              x = currentX;
+              currentX += snippet.size.width;
+            }
+            positionMap.set(snippet.snippetId, { x, y: row.y });
+          });
         });
 
         set((state) => ({
@@ -1688,15 +1716,15 @@ export const useAppStore = create<Store>()(
 
         if (allPlacedSnippets.length === 0) return;
 
-        // ID順にソート
-        const snippetOrder = new Map<string, number>();
-        allSnippets.forEach((s, index) => {
-          snippetOrder.set(s.id, index);
+        // 元PDFのページ番号順でソート
+        const snippetPageOrder = new Map<string, number>();
+        allSnippets.forEach((s) => {
+          snippetPageOrder.set(s.id, s.sourcePageNumber);
         });
         allPlacedSnippets.sort((a, b) => {
-          const orderA = snippetOrder.get(a.snippetId) ?? 0;
-          const orderB = snippetOrder.get(b.snippetId) ?? 0;
-          return orderA - orderB;
+          const pageA = snippetPageOrder.get(a.snippetId) ?? 0;
+          const pageB = snippetPageOrder.get(b.snippetId) ?? 0;
+          return pageA - pageB;
         });
 
         // 用紙設定: 最初のページの設定を使用

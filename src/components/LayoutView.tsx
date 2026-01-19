@@ -349,9 +349,8 @@ export function LayoutView() {
   // 自動全詰め処理（トリミング後に実行）
   const handleAutoRepack = useCallback(() => {
     if (!autoRepack || !activeLayoutPageId) return;
-    const basis = settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top';
-    repackAllSnippets(activeLayoutPageId, basis);
-  }, [autoRepack, activeLayoutPageId, settings.layoutAnchor, repackAllSnippets]);
+    repackAllSnippets(activeLayoutPageId);
+  }, [autoRepack, activeLayoutPageId, repackAllSnippets]);
 
   // グリッドパターンの設定
   const GRID_PATTERNS: Record<string, { cols: number; rows: number; label: string }> = {
@@ -817,7 +816,7 @@ export function LayoutView() {
                     if (arrangeScope === 'all') {
                       repackAcrossPages();
                     } else {
-                      repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
+                      repackAllSnippets(activeLayout.id);
                     }
                   }}
                   title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で詰める`}
