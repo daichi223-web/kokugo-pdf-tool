@@ -320,8 +320,17 @@ async function processImageForPdf(
 
       // 画像補正を適用
       let finalCanvas = canvas;
-      if (enhancement && (enhancement.contrast !== 1.0 || enhancement.brightness !== 1.0)) {
-        finalCanvas = applyImageEnhancement(canvas, enhancement);
+      if (enhancement) {
+        const needsEnhancement =
+          (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0) ||
+          enhancement.contrast !== 1.0 ||
+          enhancement.brightness !== 1.0 ||
+          enhancement.autoLevels ||
+          enhancement.unsharpMask ||
+          enhancement.grayscale;
+        if (needsEnhancement) {
+          finalCanvas = applyImageEnhancement(canvas, enhancement);
+        }
       }
 
       // 出力形式を選択
