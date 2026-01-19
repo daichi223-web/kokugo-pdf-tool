@@ -1482,13 +1482,20 @@ export const useAppStore = create<Store>()(
       },
 
       // 全ページを跨いで詰め直す
-      // A3横、余白15mmで全スニペットを詰め直し、空ページは削除
+      // 最初のページの設定を引き継いで全スニペットを詰め直し、空ページは削除
       repackAcrossPages: (basis: 'right-top' | 'left-top') => {
         const { layoutPages, snippets: allSnippets } = get();
         if (layoutPages.length === 0) return;
 
         // Undo用に履歴を保存
         get().pushLayoutHistory();
+
+        // 最初のページから設定を取得
+        const firstPage = layoutPages[0];
+        const basePaperSize = firstPage.paperSize;
+        const baseOrientation = firstPage.orientation;
+        const baseMarginX = firstPage.marginX ?? firstPage.margin ?? 15;
+        const baseMarginY = firstPage.marginY ?? firstPage.margin ?? 15;
 
         // 全ページからスニペットを収集
         const allPlacedSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
@@ -1511,14 +1518,14 @@ export const useAppStore = create<Store>()(
           return orderA - orderB;
         });
 
-        // 用紙設定: A3横、余白15mm
-        const paperSize = getPaperDimensions('A3', 'landscape');
-        const marginX = mmToPx(15, 96);
-        const marginY = mmToPx(15, 96);
+        // 用紙設定: 最初のページの設定を使用
+        const paperSize = getPaperDimensions(basePaperSize, baseOrientation);
+        const marginXPx = mmToPx(baseMarginX, 96);
+        const marginYPx = mmToPx(baseMarginY, 96);
         const paperWidthPx = mmToPx(paperSize.width, 96);
         const paperHeightPx = mmToPx(paperSize.height, 96);
-        const availableWidth = paperWidthPx - marginX * 2;
-        const availableHeight = paperHeightPx - marginY * 2;
+        const availableWidth = paperWidthPx - marginXPx * 2;
+        const availableHeight = paperHeightPx - marginYPx * 2;
 
         // ページごとにスニペットを振り分け
         const pagesData: { snippets: { snippetId: string; size: Size; position: Position; rotation: number }[] }[] = [];
@@ -1574,16 +1581,16 @@ export const useAppStore = create<Store>()(
           pagesData.push({ snippets: currentPageSnippets });
         }
 
-        // 新しいページ構成を作成
+        // 新しいページ構成を作成（最初のページの設定を引き継ぐ）
         const newLayoutPages: LayoutPage[] = pagesData.map((pageData, index) => ({
           id: `page-${Date.now()}-${index}`,
-          paperSize: 'A3',
-          orientation: 'landscape',
+          paperSize: basePaperSize,
+          orientation: baseOrientation,
           snippets: pageData.snippets,
           textElements: [],
           shapeElements: [],
-          marginX: 15,
-          marginY: 15,
+          marginX: baseMarginX,
+          marginY: baseMarginY,
         }));
 
         set({
