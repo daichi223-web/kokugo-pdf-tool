@@ -250,6 +250,7 @@ export interface AppActions {
   // レイアウト操作
   addLayoutPage: (paperSize: PaperSize, orientation: PaperOrientation) => void;
   removeLayoutPage: (pageId: string) => void;
+  clearAllPlacements: () => void;
   moveLayoutPage: (pageId: string, direction: 'up' | 'down') => void;
   setActiveLayoutPage: (pageId: string | null) => void;
   addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => void;

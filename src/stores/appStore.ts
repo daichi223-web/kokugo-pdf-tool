@@ -547,6 +547,17 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // 全ページの配置をクリア（スニペット自体は残す）
+      clearAllPlacements: () => {
+        get().pushLayoutHistory();
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) => ({
+            ...page,
+            snippets: [],
+          })),
+        }));
+      },
+
       // ページ順序を移動
       moveLayoutPage: (pageId: string, direction: 'up' | 'down') => {
         set((state) => {

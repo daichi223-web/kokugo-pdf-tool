@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { useState } from 'react';
-import { Trash2, Move, Crop, CornerDownLeft, Grid } from 'lucide-react';
+import { Trash2, Move, Crop, CornerDownLeft, Grid, XCircle } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
 // グリッドパターン定義
@@ -31,6 +31,7 @@ export function SnippetList() {
     arrangeAllSnippetsInGrid,
     layoutPages,
     settings,
+    clearAllPlacements,
   } = useAppStore();
 
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2'>('4x2');
@@ -64,8 +65,17 @@ export function SnippetList() {
     arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, 0, 0);
   };
 
+  // 配置を全削除
+  const handleClearAllPlacements = () => {
+    if (!confirm('全ページの配置を削除しますか？\n（スニペット自体は残ります）')) return;
+    clearAllPlacements();
+  };
+
   // レイアウトページがあるか
   const hasLayoutPage = layoutPages.length > 0;
+
+  // 配置済みスニペットがあるか
+  const hasPlacedSnippets = layoutPages.some(page => page.snippets.length > 0);
 
   return (
     <div className="w-48 bg-white rounded-lg shadow overflow-hidden flex flex-col">
@@ -95,6 +105,16 @@ export function SnippetList() {
               <Grid className="w-3 h-3" />
               配置
             </button>
+            {hasPlacedSnippets && (
+              <button
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                onClick={handleClearAllPlacements}
+                title="全ページの配置を削除"
+              >
+                <XCircle className="w-3 h-3" />
+                削除
+              </button>
+            )}
           </div>
         </div>
       )}
