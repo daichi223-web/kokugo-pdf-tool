@@ -138,11 +138,21 @@ export const useAppStore = create<Store>()(
 
               const endRender = isBenchmarkMode ? startMeasure(`render-page-${pageNum}`) : null;
               const { settings } = get();
-              // 取り込み時は補正なし（補正はPDF出力・印刷時のみ適用）
+              // 取り込み時は軽めの補正（自動レベルのみ）
+              const importEnhancement = {
+                contrast: 1.0,
+                brightness: 1.0,
+                textDarkness: 1.0,
+                sharpness: false,
+                autoLevels: true, // 白を白に、黒を黒に
+                unsharpMask: false,
+                grayscale: false,
+              };
               const imageData = await renderPageToImage(
                 pdfData.pdf,
                 pageNum,
-                settings.pdfRenderScale
+                settings.pdfRenderScale,
+                importEnhancement
               );
               endRender?.({ page: pageNum });
 

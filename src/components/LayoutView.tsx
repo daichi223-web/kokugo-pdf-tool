@@ -616,143 +616,24 @@ export function LayoutView() {
 
         <div className="w-px h-8 bg-gray-300" />
 
-        {/* 画像補正 - 有効時は目立つ表示 */}
+        {/* 画像補正ボタン */}
         {(() => {
-          const isEnhancementActive =
-            (settings.imageEnhancement?.textDarkness ?? 1.0) !== 1.0 ||
-            (settings.imageEnhancement?.contrast ?? 1.0) !== 1.0 ||
-            (settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ||
-            settings.imageEnhancement?.autoLevels ||
-            settings.imageEnhancement?.unsharpMask ||
-            settings.imageEnhancement?.grayscale;
+          const e = settings.imageEnhancement;
+          const isActive =
+            (e?.textDarkness ?? 1.0) !== 1.0 ||
+            (e?.contrast ?? 1.0) !== 1.0 ||
+            (e?.brightness ?? 1.0) !== 1.0 ||
+            e?.autoLevels || e?.unsharpMask || e?.grayscale;
           return (
-            <div className={`flex items-center gap-1 px-2 py-1 rounded border-2 transition-all ${
-              isEnhancementActive
-                ? 'bg-orange-100 border-orange-500 shadow-md'
-                : 'bg-yellow-50 border-yellow-300'
-            }`}>
-              <span className={`text-xs font-bold ${isEnhancementActive ? 'text-orange-700' : 'text-yellow-700'}`}>
-                補正{isEnhancementActive && ' ●'}
-              </span>
-          {/* 文字濃さ（ガンマ補正）- 背景はそのまま文字だけ濃く */}
-          <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
-            (settings.imageEnhancement?.textDarkness ?? 1.0) !== 1.0 ? 'bg-purple-100 ring-2 ring-purple-400' : ''
-          }`}>
-            <span className={`text-xs font-medium ${(settings.imageEnhancement?.textDarkness ?? 1.0) !== 1.0 ? 'text-purple-700' : 'text-gray-500'}`}>
-              文字濃さ
-            </span>
-            <input
-              type="range"
-              min="0.3"
-              max="1.5"
-              step="0.1"
-              value={settings.imageEnhancement?.textDarkness ?? 1.0}
-              onChange={(e) => updateSettings({
-                imageEnhancement: {
-                  ...settings.imageEnhancement,
-                  textDarkness: parseFloat(e.target.value),
-                },
-              })}
-              className="w-16 h-4 accent-purple-500"
-              title={`文字の濃さ（ガンマ）: ${settings.imageEnhancement?.textDarkness ?? 1.0} - 小さいほど濃く、背景は白いまま`}
-            />
-            <span className={`text-xs w-8 text-center font-bold ${
-              (settings.imageEnhancement?.textDarkness ?? 1.0) !== 1.0 ? 'text-purple-700 bg-purple-200 px-1 rounded' : ''
-            }`}>
-              {settings.imageEnhancement?.textDarkness?.toFixed(1) ?? '1.0'}
-            </span>
-          </div>
-          {/* 明るさ */}
-          <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
-            (settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ? 'bg-blue-100 ring-2 ring-blue-400' : ''
-          }`}>
-            <span className={`text-xs font-medium ${(settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ? 'text-blue-700' : 'text-gray-500'}`}>
-              明るさ
-            </span>
-            <input
-              type="range"
-              min="0.5"
-              max="1.5"
-              step="0.05"
-              value={settings.imageEnhancement?.brightness ?? 1.0}
-              onChange={(e) => updateSettings({
-                imageEnhancement: {
-                  ...settings.imageEnhancement,
-                  brightness: parseFloat(e.target.value),
-                },
-              })}
-              className="w-16 h-4 accent-blue-500"
-              title={`明るさ: ${settings.imageEnhancement?.brightness ?? 1.0}`}
-            />
-            <span className={`text-xs w-8 text-center font-bold ${
-              (settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ? 'text-blue-700 bg-blue-200 px-1 rounded' : ''
-            }`}>
-              {settings.imageEnhancement?.brightness?.toFixed(2) ?? '1.00'}
-            </span>
-          </div>
-          <button
-            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.autoLevels ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
-            onClick={() => updateSettings({
-              imageEnhancement: {
-                ...settings.imageEnhancement,
-                autoLevels: !settings.imageEnhancement?.autoLevels,
-              },
-            })}
-            title="オートレベル（白を白に、黒を黒に）"
-          >
-            自動
-          </button>
-          <button
-            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.unsharpMask ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
-            onClick={() => updateSettings({
-              imageEnhancement: {
-                ...settings.imageEnhancement,
-                unsharpMask: !settings.imageEnhancement?.unsharpMask,
-              },
-            })}
-            title="アンシャープマスク（エッジ強調）"
-          >
-            鮮明
-          </button>
-          <button
-            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.grayscale ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
-            onClick={() => updateSettings({
-              imageEnhancement: {
-                ...settings.imageEnhancement,
-                grayscale: !settings.imageEnhancement?.grayscale,
-              },
-            })}
-            title="グレースケール変換"
-          >
-            白黒
-          </button>
-          <button
-            className="px-1.5 py-0.5 text-xs bg-gray-300 rounded hover:bg-gray-400"
-            onClick={() => updateSettings({
-              imageEnhancement: {
-                contrast: 1.0,
-                brightness: 1.0,
-                textDarkness: 1.0,
-                sharpness: false,
-                autoLevels: false,
-                unsharpMask: false,
-                grayscale: false,
-              },
-            })}
-            title="リセット"
-          >
-            ↺
-          </button>
-          {/* プレビューボタン */}
-          <button
-            className="px-2 py-0.5 text-xs bg-green-500 text-white rounded hover:bg-green-600 font-bold"
-            onClick={() => setShowEnhancementPreview(true)}
-            disabled={snippets.length === 0}
-            title="補正効果をプレビュー"
-          >
-            プレビュー
-          </button>
-            </div>
+            <button
+              className={`px-3 py-1.5 text-sm rounded font-medium ${
+                isActive ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={() => setShowEnhancementPreview(true)}
+              title="画像補正設定"
+            >
+              補正{isActive && ' ●'}
+            </button>
           );
         })()}
 
@@ -1446,90 +1327,95 @@ export function LayoutView() {
         </div>
       </div>
 
-      {/* 補正プレビューモーダル */}
+      {/* 補正設定モーダル */}
       {showEnhancementPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-2xl max-w-6xl max-h-[90vh] overflow-auto p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold">補正プレビュー</h2>
+          <div className="bg-white rounded-lg shadow-2xl max-w-5xl max-h-[90vh] overflow-auto p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-bold">画像補正</h2>
               <button
                 className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                onClick={() => {
-                  setShowEnhancementPreview(false);
-                  setPreviewImage(null);
-                }}
+                onClick={() => { setShowEnhancementPreview(false); setPreviewImage(null); }}
               >
                 閉じる
               </button>
             </div>
-            {previewImage ? (
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-gray-600 mb-2 text-center">補正前（オリジナル）</h3>
-                  <div className="border rounded p-2 bg-gray-50">
-                    <img
-                      src={previewImage.original}
-                      alt="補正前"
-                      className="max-w-full max-h-[60vh] mx-auto"
-                    />
+
+            {/* 補正設定UI */}
+            {(() => {
+              const e = settings.imageEnhancement;
+              return (
+                <div className="mb-4 p-3 bg-gray-50 rounded border space-y-3">
+                  {/* スライダー */}
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm w-16">文字濃さ</span>
+                      <input type="range" min="0.3" max="1.5" step="0.1"
+                        value={e?.textDarkness ?? 1.0}
+                        onChange={(ev) => updateSettings({ imageEnhancement: { ...e, textDarkness: parseFloat(ev.target.value) }})}
+                        className="w-24"
+                      />
+                      <span className={`text-sm w-8 ${(e?.textDarkness ?? 1.0) !== 1.0 ? 'font-bold text-purple-600' : ''}`}>
+                        {e?.textDarkness?.toFixed(1) ?? '1.0'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm w-16">明るさ</span>
+                      <input type="range" min="0.5" max="1.5" step="0.05"
+                        value={e?.brightness ?? 1.0}
+                        onChange={(ev) => updateSettings({ imageEnhancement: { ...e, brightness: parseFloat(ev.target.value) }})}
+                        className="w-24"
+                      />
+                      <span className={`text-sm w-8 ${(e?.brightness ?? 1.0) !== 1.0 ? 'font-bold text-blue-600' : ''}`}>
+                        {e?.brightness?.toFixed(1) ?? '1.0'}
+                      </span>
+                    </div>
+                  </div>
+                  {/* トグルボタン */}
+                  <div className="flex items-center gap-2">
+                    <button className={`px-3 py-1 text-sm rounded ${e?.autoLevels ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, autoLevels: !e?.autoLevels }})}>自動レベル</button>
+                    <button className={`px-3 py-1 text-sm rounded ${e?.unsharpMask ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, unsharpMask: !e?.unsharpMask }})}>鮮明化</button>
+                    <button className={`px-3 py-1 text-sm rounded ${e?.grayscale ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, grayscale: !e?.grayscale }})}>グレースケール</button>
+                    <button className="px-3 py-1 text-sm bg-gray-300 rounded hover:bg-gray-400"
+                      onClick={() => updateSettings({ imageEnhancement: { contrast: 1.0, brightness: 1.0, textDarkness: 1.0, sharpness: false, autoLevels: false, unsharpMask: false, grayscale: false }})}>リセット</button>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-gray-600 mb-2 text-center">補正後</h3>
-                  <div className="border-2 border-orange-400 rounded p-2 bg-orange-50">
-                    <img
-                      src={previewImage.enhanced}
-                      alt="補正後"
-                      className="max-w-full max-h-[60vh] mx-auto"
-                    />
+              );
+            })()}
+
+            {/* プレビュー */}
+            {snippets.length > 0 ? (
+              previewImage ? (
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-sm text-gray-600 mb-1 text-center">補正前</h3>
+                    <div className="border rounded p-1 bg-gray-50">
+                      <img src={previewImage.original} alt="補正前" className="max-w-full max-h-[50vh] mx-auto" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm text-gray-600 mb-1 text-center">補正後</h3>
+                    <div className="border-2 border-orange-400 rounded p-1 bg-orange-50">
+                      <img src={previewImage.enhanced} alt="補正後" className="max-w-full max-h-[50vh] mx-auto" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center justify-center h-48">
+                  <div className="text-center">
+                    <div className="animate-spin w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                    <p className="text-sm">プレビュー生成中...</p>
+                  </div>
+                </div>
+              )
             ) : (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                  <p>プレビュー生成中...</p>
-                </div>
+              <div className="text-center text-gray-500 py-8">
+                スニペットがありません。トリミングしてからプレビューを確認できます。
               </div>
             )}
-            <div className="mt-4 p-3 bg-gray-100 rounded text-sm">
-              <p className="font-medium mb-2">現在の補正設定:</p>
-              <div className="flex gap-4 flex-wrap">
-                {(settings.imageEnhancement?.textDarkness ?? 1.0) !== 1.0 && (
-                  <span className="px-2 py-1 bg-purple-200 text-purple-800 rounded">
-                    文字濃さ: {settings.imageEnhancement?.textDarkness?.toFixed(1)}
-                  </span>
-                )}
-                {(settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 && (
-                  <span className="px-2 py-1 bg-blue-200 text-blue-800 rounded">
-                    明るさ: {settings.imageEnhancement?.brightness?.toFixed(2)}
-                  </span>
-                )}
-                {(settings.imageEnhancement?.contrast ?? 1.0) !== 1.0 && (
-                  <span className="px-2 py-1 bg-red-200 text-red-800 rounded">
-                    コントラスト: {settings.imageEnhancement?.contrast?.toFixed(1)}
-                  </span>
-                )}
-                {settings.imageEnhancement?.autoLevels && (
-                  <span className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded">自動レベル</span>
-                )}
-                {settings.imageEnhancement?.unsharpMask && (
-                  <span className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded">鮮明化</span>
-                )}
-                {settings.imageEnhancement?.grayscale && (
-                  <span className="px-2 py-1 bg-gray-300 text-gray-800 rounded">グレースケール</span>
-                )}
-                {(settings.imageEnhancement?.textDarkness ?? 1.0) === 1.0 &&
-                  (settings.imageEnhancement?.brightness ?? 1.0) === 1.0 &&
-                  (settings.imageEnhancement?.contrast ?? 1.0) === 1.0 &&
-                  !settings.imageEnhancement?.autoLevels &&
-                  !settings.imageEnhancement?.unsharpMask &&
-                  !settings.imageEnhancement?.grayscale && (
-                    <span className="text-gray-500">補正なし（オリジナルのまま出力）</span>
-                  )}
-              </div>
-            </div>
           </div>
         </div>
       )}
