@@ -258,27 +258,30 @@ async function renderTextElementToImage(textElement: TextElement): Promise<strin
 /**
  * PDF出力の画質設定
  */
-export type PdfQuality = 'high' | 'standard' | 'light';
+export type PdfQuality = 'maximum' | 'high' | 'standard' | 'light';
 
 export interface PdfQualitySettings {
   format: 'png' | 'jpeg';
   quality: number;  // JPEG品質 0-1
-  scale: number;    // 解像度スケール 0-1
+  scale: number;    // 解像度スケール（1以上で拡大、印刷品質向上）
+  useOriginalSize: boolean;  // 元のサイズを維持（縮小しない）
 }
 
 export const PDF_QUALITY_PRESETS: Record<PdfQuality, PdfQualitySettings> = {
-  high: { format: 'png', quality: 1, scale: 1 },
-  standard: { format: 'jpeg', quality: 0.8, scale: 1 },
-  light: { format: 'jpeg', quality: 0.6, scale: 0.75 },
+  maximum: { format: 'png', quality: 1, scale: 2, useOriginalSize: true },  // 最高：2倍解像度、PNG、元サイズ維持
+  high: { format: 'png', quality: 1, scale: 1, useOriginalSize: false },
+  standard: { format: 'jpeg', quality: 0.85, scale: 1, useOriginalSize: false },
+  light: { format: 'jpeg', quality: 0.7, scale: 0.75, useOriginalSize: false },
 };
 
 /**
  * 画像をリサイズ・圧縮する
+ * 最高画質モードでは元画像の解像度を維持しつつ、高品質な補間で拡大
  */
 async function processImageForPdf(
   imageData: string,
   settings: PdfQualitySettings
-): Promise<{ data: ArrayBuffer; isPng: boolean }> {
+): Promise<{ data: ArrayBuffer; isPng: boolean; originalWidth: number; originalHeight: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -289,9 +292,13 @@ async function processImageForPdf(
         return;
       }
 
-      // スケールを適用
+      // スケールを適用（最高画質モードでは2倍に拡大して高解像度化）
       canvas.width = Math.round(img.width * settings.scale);
       canvas.height = Math.round(img.height * settings.scale);
+
+      // 高品質な補間を有効化
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       // 白背景（JPEG用）
       if (settings.format === 'jpeg') {
@@ -307,7 +314,12 @@ async function processImageForPdf(
 
       fetch(dataUrl)
         .then(res => res.arrayBuffer())
-        .then(buffer => resolve({ data: buffer, isPng: settings.format === 'png' }))
+        .then(buffer => resolve({
+          data: buffer,
+          isPng: settings.format === 'png',
+          originalWidth: img.width,
+          originalHeight: img.height
+        }))
         .catch(reject);
     };
     img.onerror = reject;
@@ -503,4 +515,182 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
       document.body.removeChild(textArea);
     }
   }
+}
+
+/**
+ * 直接印刷機能
+ * PDFを生成せずにブラウザの印刷ダイアログを開く
+ */
+export async function printLayoutDirectly(
+  layoutPages: LayoutPage[],
+  snippets: Snippet[]
+): Promise<void> {
+  // 印刷用コンテナを作成
+  const printContainer = document.createElement('div');
+  printContainer.id = 'print-container';
+  printContainer.style.cssText = `
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    background: white;
+  `;
+
+  // 画面は96 DPI基準
+  const screenDpi = 96;
+
+  for (let pageIndex = 0; pageIndex < layoutPages.length; pageIndex++) {
+    const layoutPage = layoutPages[pageIndex];
+    const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
+    const pageWidth = mmToPx(paperSize.width, screenDpi);
+    const pageHeight = mmToPx(paperSize.height, screenDpi);
+
+    // ページコンテナ
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'print-page';
+    pageDiv.style.cssText = `
+      width: ${pageWidth}px;
+      height: ${pageHeight}px;
+      position: relative;
+      background: white;
+      page-break-after: ${pageIndex < layoutPages.length - 1 ? 'always' : 'auto'};
+      box-sizing: border-box;
+    `;
+
+    // ページごとの余白設定を使用（デフォルト15mm）
+    const marginX = mmToPx(layoutPage.marginX ?? layoutPage.margin ?? 15, screenDpi);
+    const marginY = mmToPx(layoutPage.marginY ?? layoutPage.margin ?? 15, screenDpi);
+
+    // スニペットを配置
+    for (const placedSnippet of layoutPage.snippets) {
+      const snippet = snippets.find((s) => s.id === placedSnippet.snippetId);
+      if (!snippet || !snippet.imageData) continue;
+
+      const img = document.createElement('img');
+      img.src = snippet.imageData;
+      img.style.cssText = `
+        position: absolute;
+        left: ${marginX + placedSnippet.position.x}px;
+        top: ${marginY + placedSnippet.position.y}px;
+        width: ${placedSnippet.size.width}px;
+        height: ${placedSnippet.size.height}px;
+      `;
+      pageDiv.appendChild(img);
+    }
+
+    // テキスト要素を配置
+    if (layoutPage.textElements) {
+      for (const textElement of layoutPage.textElements) {
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = `
+          position: absolute;
+          left: ${marginX + textElement.position.x}px;
+          top: ${marginY + textElement.position.y}px;
+          width: ${textElement.size.width}px;
+          height: ${textElement.size.height}px;
+          font-size: ${textElement.fontSize}px;
+          font-family: ${textElement.fontFamily};
+          color: ${textElement.color};
+          writing-mode: ${textElement.writingMode === 'vertical' ? 'vertical-rl' : 'horizontal-tb'};
+          text-align: ${textElement.textAlign};
+          white-space: pre-wrap;
+          overflow: hidden;
+        `;
+        textDiv.textContent = textElement.content;
+        pageDiv.appendChild(textDiv);
+      }
+    }
+
+    // 図形要素を配置
+    if (layoutPage.shapeElements) {
+      for (const shape of layoutPage.shapeElements) {
+        const shapeDiv = document.createElement('div');
+        const baseStyle = `
+          position: absolute;
+          left: ${marginX + shape.position.x}px;
+          top: ${marginY + shape.position.y}px;
+          width: ${shape.size.width}px;
+          height: ${shape.size.height}px;
+          border: ${shape.strokeWidth}px solid ${shape.strokeColor};
+          background-color: ${shape.fillColor === 'transparent' ? 'transparent' : shape.fillColor};
+          box-sizing: border-box;
+        `;
+
+        if (shape.shapeType === 'circle') {
+          shapeDiv.style.cssText = baseStyle + 'border-radius: 50%;';
+        } else if (shape.shapeType === 'line') {
+          // 線は高さ0で境界線のみ
+          shapeDiv.style.cssText = `
+            position: absolute;
+            left: ${marginX + shape.position.x}px;
+            top: ${marginY + shape.position.y + shape.size.height / 2}px;
+            width: ${shape.size.width}px;
+            height: 0;
+            border-top: ${shape.strokeWidth}px solid ${shape.strokeColor};
+            box-sizing: border-box;
+          `;
+        } else {
+          shapeDiv.style.cssText = baseStyle;
+        }
+        pageDiv.appendChild(shapeDiv);
+      }
+    }
+
+    printContainer.appendChild(pageDiv);
+  }
+
+  document.body.appendChild(printContainer);
+
+  // 印刷用CSSを動的に追加
+  const printStyle = document.createElement('style');
+  printStyle.id = 'print-style';
+  printStyle.textContent = `
+    @media print {
+      body > *:not(#print-container) {
+        display: none !important;
+      }
+      #print-container {
+        position: static !important;
+        left: auto !important;
+      }
+      .print-page {
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+      }
+      @page {
+        margin: 0;
+        size: auto;
+      }
+    }
+  `;
+  document.head.appendChild(printStyle);
+
+  // 画像の読み込みを待つ
+  const images = printContainer.querySelectorAll('img');
+  await Promise.all(
+    Array.from(images).map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+          } else {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          }
+        })
+    )
+  );
+
+  // 少し待ってから印刷
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // 印刷ダイアログを開く
+  window.print();
+
+  // クリーンアップ
+  document.body.removeChild(printContainer);
+  document.head.removeChild(printStyle);
 }

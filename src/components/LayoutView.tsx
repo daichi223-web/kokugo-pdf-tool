@@ -30,6 +30,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  Printer,
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { SnippetList } from './SnippetList';
@@ -44,7 +45,7 @@ import {
   getLatestTemplateAny,
   getTemplates,
 } from '../utils/cropTemplateUtils';
-import { exportLayoutToPDF, type PdfQuality } from '../utils/exportUtils';
+import { exportLayoutToPDF, printLayoutDirectly, type PdfQuality } from '../utils/exportUtils';
 
 export function LayoutView() {
   const {
@@ -102,6 +103,7 @@ export function LayoutView() {
   const [gridGapX, setGridGapX] = useState(0); // グリッド配置の間隔（横）
   const [gridGapY, setGridGapY] = useState(0); // グリッド配置の間隔（縦）
   const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard'); // PDF出力画質
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // 現在のモードに応じたズーム値
   const zoom = mode === 'layout' ? layoutZoom : cropZoom;
@@ -407,6 +409,21 @@ export function LayoutView() {
     }
   }, [layoutPages, snippets, pdfQuality]);
 
+  // 直接印刷
+  const handlePrint = useCallback(async () => {
+    if (layoutPages.length === 0) return;
+
+    setIsPrinting(true);
+    try {
+      await printLayoutDirectly(layoutPages, snippets);
+    } catch (error) {
+      console.error('印刷エラー:', error);
+      alert('印刷の準備に失敗しました');
+    } finally {
+      setIsPrinting(false);
+    }
+  }, [layoutPages, snippets]);
+
   return (
     <div className="h-full flex flex-col gap-2">
       {/* ===== ツールバー上段: 基本設定 ===== */}
@@ -557,7 +574,7 @@ export function LayoutView() {
           <Grid className="w-5 h-5" />
         </button>
 
-        {/* PDF出力 */}
+        {/* PDF出力 & 印刷 */}
         <div className="flex items-center gap-1">
           <select
             className="border rounded px-1 py-1 text-xs"
@@ -565,6 +582,7 @@ export function LayoutView() {
             onChange={(e) => setPdfQuality(e.target.value as PdfQuality)}
             title="PDF画質設定"
           >
+            <option value="maximum">最高画質</option>
             <option value="high">高画質</option>
             <option value="standard">標準</option>
             <option value="light">軽量</option>
@@ -576,6 +594,15 @@ export function LayoutView() {
           >
             <Download className="w-4 h-4" />
             {isExporting ? '出力中...' : 'PDF出力'}
+          </button>
+          <button
+            className="flex items-center gap-1 px-4 py-2 bg-purple-500 text-white font-bold rounded hover:bg-purple-600 disabled:opacity-50"
+            disabled={layoutPages.length === 0 || isPrinting}
+            onClick={handlePrint}
+            title="PDFを生成せずに直接印刷"
+          >
+            <Printer className="w-4 h-4" />
+            {isPrinting ? '準備中...' : '印刷'}
           </button>
         </div>
       </div>
