@@ -3,7 +3,7 @@
 // P3-001: トリミング機能 - スニペット管理
 // =============================================================================
 
-import { Trash2, Move, Crop } from 'lucide-react';
+import { Trash2, Move, Crop, CornerDownLeft } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
 export function SnippetList() {
@@ -18,6 +18,7 @@ export function SnippetList() {
     setActiveFile,
     setActivePage,
     activeFileId,
+    toggleSnippetPageBreak,
   } = useAppStore();
 
   // スニペットを選択した時にソースファイル・ページもアクティブに設定
@@ -73,8 +74,25 @@ export function SnippetList() {
                   className="w-full h-auto rounded"
                 />
 
+                {/* 改ページマーク */}
+                {snippet.pageBreakBefore && (
+                  <div className="absolute top-0 left-0 bg-orange-500 text-white text-xs px-1 py-0.5 rounded-br">
+                    改ページ
+                  </div>
+                )}
+
                 {/* オーバーレイ */}
                 <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-opacity flex items-center justify-center gap-1 opacity-0 hover:opacity-100">
+                  <button
+                    className={`p-1.5 ${snippet.pageBreakBefore ? 'bg-orange-500 hover:bg-orange-600' : 'bg-gray-500 hover:bg-gray-600'} text-white rounded`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSnippetPageBreak(snippet.id);
+                    }}
+                    title={snippet.pageBreakBefore ? '改ページ解除' : '改ページ設定'}
+                  >
+                    <CornerDownLeft className="w-4 h-4" />
+                  </button>
                   <button
                     className="p-1.5 bg-green-500 text-white rounded hover:bg-green-600"
                     onClick={(e) => {

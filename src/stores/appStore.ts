@@ -483,6 +483,15 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // スニペットの改ページフラグをトグル
+      toggleSnippetPageBreak: (snippetId: string) => {
+        set((state) => ({
+          snippets: state.snippets.map((s) =>
+            s.id === snippetId ? { ...s, pageBreakBefore: !s.pageBreakBefore } : s
+          ),
+        }));
+      },
+
       // レイアウト操作
       // P3-002: 再配置エディタ
       // P3-004: 用紙サイズ選択
@@ -507,6 +516,22 @@ export const useAppStore = create<Store>()(
           activeLayoutPageId:
             state.activeLayoutPageId === pageId ? null : state.activeLayoutPageId,
         }));
+      },
+
+      // ページ順序を移動
+      moveLayoutPage: (pageId: string, direction: 'up' | 'down') => {
+        set((state) => {
+          const index = state.layoutPages.findIndex((p) => p.id === pageId);
+          if (index === -1) return state;
+
+          const newIndex = direction === 'up' ? index - 1 : index + 1;
+          if (newIndex < 0 || newIndex >= state.layoutPages.length) return state;
+
+          const newPages = [...state.layoutPages];
+          [newPages[index], newPages[newIndex]] = [newPages[newIndex], newPages[index]];
+
+          return { layoutPages: newPages };
+        });
       },
 
       setActiveLayoutPage: (pageId: string | null) => {
@@ -1036,6 +1061,7 @@ export const useAppStore = create<Store>()(
 
       // 全スニペットをグリッド配置（スニペットリストから一括配置）
       // autoCreatePages: trueの場合、グリッド容量を超えたら自動でページを追加
+      // pageBreakBeforeフラグがあるスニペットは強制的に次のページに配置
       arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX: number = 0, gapY: number = 0, autoCreatePages: boolean = true) => {
         const { layoutPages, snippets } = get();
         const page = layoutPages.find((p) => p.id === pageId);
@@ -1048,8 +1074,10 @@ export const useAppStore = create<Store>()(
         const paperSize = getPaperDimensions(page.paperSize, page.orientation);
         const pageWidth = mmToPx(paperSize.width, 96);
         const pageHeight = mmToPx(paperSize.height, 96);
-        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
-        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
+        const baseMarginX = page.marginX ?? page.margin ?? 15;
+        const baseMarginY = page.marginY ?? page.margin ?? 15;
+        const marginX = mmToPx(baseMarginX, 96);
+        const marginY = mmToPx(baseMarginY, 96);
 
         // 配置可能エリア（間隔分を引く）
         const totalGapX = gapX * (cols - 1);
@@ -1083,99 +1111,95 @@ export const useAppStore = create<Store>()(
 
         // 1ページあたりの容量
         const capacity = cols * rows;
-        const totalSnippets = snippets.length;
-        const numPagesNeeded = Math.ceil(totalSnippets / capacity);
 
-        // 自動ページ作成が有効で、複数ページが必要な場合
-        if (autoCreatePages && numPagesNeeded > 1) {
-          // 現在のページのインデックスを取得
-          const currentPageIndex = layoutPages.findIndex((p) => p.id === pageId);
+        // ページごとにスニペットを分配（pageBreakBeforeを考慮）
+        const pagesData: PlacedSnippet[][] = [[]];
+        let currentPageIndex = 0;
+        let positionInPage = 0;
 
-          // 必要な追加ページを作成
-          const newPages: LayoutPage[] = [];
-          for (let i = 1; i < numPagesNeeded; i++) {
-            newPages.push({
-              id: generateId(),
-              paperSize: page.paperSize,
-              orientation: page.orientation,
-              snippets: [],
-              textElements: [],
-              shapeElements: [],
-            });
+        snippets.forEach((snippet) => {
+          // 改ページフラグがある場合、または容量超過の場合は次のページへ
+          if (snippet.pageBreakBefore && pagesData[currentPageIndex].length > 0) {
+            currentPageIndex++;
+            pagesData[currentPageIndex] = [];
+            positionInPage = 0;
+          } else if (positionInPage >= capacity) {
+            currentPageIndex++;
+            pagesData[currentPageIndex] = [];
+            positionInPage = 0;
           }
 
-          // 各ページにスニペットを分配
-          const allPageIds = [pageId, ...newPages.map((p) => p.id)];
-          const snippetsByPage: Record<string, PlacedSnippet[]> = {};
+          const col = cols - 1 - (positionInPage % cols); // 右から左へ
+          const row = Math.floor(positionInPage / cols);
 
-          allPageIds.forEach((pid) => {
-            snippetsByPage[pid] = [];
+          pagesData[currentPageIndex].push({
+            snippetId: snippet.id,
+            position: {
+              x: col * (cellWidth + gapX),
+              y: row * (cellHeight + gapY),
+            },
+            size: {
+              width: cellWidth,
+              height: cellHeight,
+            },
+            rotation: 0,
           });
 
-          snippets.forEach((snippet, index) => {
-            const pageIndex = Math.floor(index / capacity);
-            const positionInPage = index % capacity;
-            const col = cols - 1 - (positionInPage % cols); // 右から左へ
-            const row = Math.floor(positionInPage / cols);
+          positionInPage++;
+        });
 
-            const targetPageId = allPageIds[pageIndex];
-            snippetsByPage[targetPageId].push({
-              snippetId: snippet.id,
-              position: {
-                x: col * (cellWidth + gapX),
-                y: row * (cellHeight + gapY),
-              },
-              size: {
-                width: cellWidth,
-                height: cellHeight,
-              },
-              rotation: 0,
-            });
-          });
-
-          // ストアを更新
-          set((state) => {
-            // 既存ページを更新し、新しいページを挿入
-            const updatedPages = state.layoutPages.map((p) =>
-              p.id === pageId ? { ...p, snippets: snippetsByPage[pageId] } : p
-            );
-
-            // 現在のページの後ろに新しいページを挿入
-            const insertIndex = currentPageIndex + 1;
-            const finalPages = [
-              ...updatedPages.slice(0, insertIndex),
-              ...newPages.map((np) => ({ ...np, snippets: snippetsByPage[np.id] })),
-              ...updatedPages.slice(insertIndex),
-            ];
-
-            return { layoutPages: finalPages };
-          });
-        } else {
-          // 1ページで収まる場合、または自動作成無効の場合
-          const newPlacedSnippets = snippets.map((snippet, index) => {
-            const col = cols - 1 - (index % cols); // 右から左へ
-            const row = Math.floor(index / cols);
-
-            return {
-              snippetId: snippet.id,
-              position: {
-                x: col * (cellWidth + gapX),
-                y: row * (cellHeight + gapY),
-              },
-              size: {
-                width: cellWidth,
-                height: cellHeight,
-              },
-              rotation: 0,
-            };
-          });
-
+        // 自動ページ作成が無効で1ページに収まらない場合は最初のページのみ
+        if (!autoCreatePages) {
           set((state) => ({
             layoutPages: state.layoutPages.map((p) =>
-              p.id === pageId ? { ...p, snippets: newPlacedSnippets } : p
+              p.id === pageId ? { ...p, snippets: pagesData[0] } : p
             ),
           }));
+          return;
         }
+
+        // 現在のページのインデックスを取得
+        const currentLayoutPageIndex = layoutPages.findIndex((p) => p.id === pageId);
+
+        // 必要な追加ページを作成
+        const newPages: LayoutPage[] = [];
+        for (let i = 1; i < pagesData.length; i++) {
+          newPages.push({
+            id: generateId(),
+            paperSize: page.paperSize,
+            orientation: page.orientation,
+            snippets: [],
+            textElements: [],
+            shapeElements: [],
+            marginX: baseMarginX,
+            marginY: baseMarginY,
+          });
+        }
+
+        // 各ページにスニペットを設定
+        const allPageIds = [pageId, ...newPages.map((p) => p.id)];
+        const snippetsByPage: Record<string, PlacedSnippet[]> = {};
+        allPageIds.forEach((pid, idx) => {
+          snippetsByPage[pid] = pagesData[idx] || [];
+        });
+
+        // ストアを更新
+        set((state) => {
+          // 既存ページを更新し、新しいページを挿入
+          const updatedPages = state.layoutPages.map((p) =>
+            p.id === pageId ? { ...p, snippets: snippetsByPage[pageId] } : p
+          );
+
+          // 現在のページの後ろに新しいページを挿入
+          const insertIndex = currentLayoutPageIndex + 1;
+          const finalPages = [
+            ...updatedPages.slice(0, insertIndex),
+            ...newPages.map((np) => ({ ...np, snippets: snippetsByPage[np.id] })),
+            ...updatedPages.slice(insertIndex),
+          ];
+
+          return { layoutPages: finalPages };
+        });
       },
 
       // 整列機能

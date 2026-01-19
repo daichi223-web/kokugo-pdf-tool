@@ -58,8 +58,10 @@ export function LayoutView() {
     selectedSnippetId,
     addLayoutPage,
     removeLayoutPage,
+    moveLayoutPage,
     setActiveLayoutPage,
     updateSettings,
+    toggleSnippetPageBreak,
     selectedPageNumbers,
     addSnippet,
     applySnippetSizeToLayout,
@@ -1076,6 +1078,28 @@ export function LayoutView() {
                           <span className="text-xs opacity-75">
                             ({page.paperSize} {page.orientation === 'portrait' ? '縦' : '横'})
                           </span>
+                          <button
+                            className="ml-1 p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveLayoutPage(page.id, 'up');
+                            }}
+                            disabled={index === 0}
+                            aria-label="ページを前に移動"
+                          >
+                            <ChevronLeft className="w-3 h-3" />
+                          </button>
+                          <button
+                            className="p-0.5 hover:bg-gray-200 rounded disabled:opacity-30"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveLayoutPage(page.id, 'down');
+                            }}
+                            disabled={index === layoutPages.length - 1}
+                            aria-label="ページを後ろに移動"
+                          >
+                            <ChevronRight className="w-3 h-3" />
+                          </button>
                           <button
                             className="ml-1 p-0.5 hover:bg-red-200 rounded"
                             onClick={(e) => {

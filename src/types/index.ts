@@ -62,6 +62,7 @@ export interface Snippet {
   cropZoom: number;  // トリミング時のズーム値（配置時の補正に使用）
   imageData: string; // Base64 encoded image
   createdAt: Date;
+  pageBreakBefore?: boolean;  // このスニペットから改ページ（次のページに配置）
 }
 
 export interface CropArea {
@@ -225,10 +226,12 @@ export interface AppActions {
   addSnippet: (snippet: Omit<Snippet, 'id' | 'createdAt'>) => void;
   updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => void;
   removeSnippet: (snippetId: string) => void;
+  toggleSnippetPageBreak: (snippetId: string) => void;
 
   // レイアウト操作
   addLayoutPage: (paperSize: PaperSize, orientation: PaperOrientation) => void;
   removeLayoutPage: (pageId: string) => void;
+  moveLayoutPage: (pageId: string, direction: 'up' | 'down') => void;
   setActiveLayoutPage: (pageId: string | null) => void;
   addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetPosition: (pageId: string, snippetId: string, position: Position) => void;
