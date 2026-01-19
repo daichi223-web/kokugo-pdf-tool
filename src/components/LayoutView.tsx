@@ -97,6 +97,9 @@ export function LayoutView() {
   const [pageGapX, setPageGapX] = useState(0); // ページ内間隔調整（横）
   const [pageGapY, setPageGapY] = useState(0); // ページ内間隔調整（縦）
   const [autoRepack, setAutoRepack] = useState(true); // 自動全詰め機能
+
+  // 再トリミング時の元のレイアウトページIDを記憶
+  const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | 'auto'>('4x2');
   const [gridGapX, setGridGapX] = useState(0); // グリッド配置の間隔（横）
   const [gridGapY, setGridGapY] = useState(0); // グリッド配置の間隔（縦）
@@ -215,6 +218,9 @@ export function LayoutView() {
   // 再トリミングモード開始時に自動でトリミングモードに切り替え＆元ページへ移動
   useEffect(() => {
     if (reCropSnippetId) {
+      // 現在のレイアウトページIDを記憶（再トリミング完了後に戻るため）
+      reCropSourceLayoutPageIdRef.current = activeLayoutPageId;
+
       // 再トリミング対象のスニペットのソースファイル・ページに自動移動
       const snippet = snippets.find(s => s.id === reCropSnippetId);
       if (snippet) {
@@ -226,7 +232,7 @@ export function LayoutView() {
       }
       setMode('crop');
     }
-  }, [reCropSnippetId, snippets, setActivePage, setActiveFile, activeFileId]);
+  }, [reCropSnippetId, snippets, setActivePage, setActiveFile, activeFileId, activeLayoutPageId]);
 
   const handleAddPage = () => {
     addLayoutPage(newPageSize, newPageOrientation);
@@ -945,6 +951,11 @@ export function LayoutView() {
                     onClick={() => {
                       setReCropSnippet(null);
                       setMode('layout'); // キャンセル時も配置モードに戻る
+                      // 元のレイアウトページに戻る
+                      if (reCropSourceLayoutPageIdRef.current) {
+                        setActiveLayoutPage(reCropSourceLayoutPageIdRef.current);
+                        reCropSourceLayoutPageIdRef.current = null;
+                      }
                     }}
                   >
                     キャンセル
@@ -961,18 +972,25 @@ export function LayoutView() {
                     onTemplateApplied={() => setPendingTemplate(null)}
                     batchMode={false}
                     onCropComplete={() => {
+                      const sourceLayoutPageId = reCropSourceLayoutPageIdRef.current;
                       setReCropSnippet(null);
                       setMode('layout'); // 再トリミング完了後、配置モードに戻る
+                      // 元のレイアウトページに戻る
+                      if (sourceLayoutPageId) {
+                        setActiveLayoutPage(sourceLayoutPageId);
+                        reCropSourceLayoutPageIdRef.current = null;
+                      }
                       // 自動サイズ揃え → 全詰め → 間隔調整を順番に実行
+                      const targetPageId = sourceLayoutPageId || activeLayoutPageId;
                       setTimeout(() => {
                         handleAutoUnifySize();
                         // サイズ更新後に全詰め
                         setTimeout(() => {
                           handleAutoRepack();
                           // 全詰め後にUIで設定した間隔で詰め直す（マイナス値で重ねて余白を相殺）
-                          if (autoRepack && activeLayoutPageId) {
+                          if (autoRepack && targetPageId) {
                             setTimeout(() => {
-                              adjustPageSnippetsGap(activeLayoutPageId, pageGapX, pageGapY);
+                              adjustPageSnippetsGap(targetPageId, pageGapX, pageGapY);
                             }, 50);
                           }
                         }, 50);
