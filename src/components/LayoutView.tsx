@@ -65,6 +65,8 @@ export function LayoutView() {
     applySnippetSizeToLayout,
     applySnippetWidthToLayout,
     applySnippetHeightToLayout,
+    applySnippetXPositionToLayout,
+    applySnippetYPositionToLayout,
     reCropSnippetId,
     setReCropSnippet,
     selectedSnippetIds,
@@ -750,6 +752,27 @@ export function LayoutView() {
               title="サイズを揃える（選択基準）"
             >
               両方
+            </button>
+          </div>
+
+          {/* 位置揃えグループ */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-cyan-50 rounded border border-cyan-200">
+            <span className="text-xs text-cyan-600 mr-1">位置</span>
+            <button
+              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetXPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.x)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="横位置を揃える（選択基準）"
+            >
+              横
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetYPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.y)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="縦位置を揃える（選択基準）"
+            >
+              縦
             </button>
           </div>
 

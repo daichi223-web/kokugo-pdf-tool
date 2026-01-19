@@ -685,6 +685,46 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // X位置一括適用（横位置揃え）
+      applySnippetXPositionToLayout: (pageId: string, targetX: number) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  snippets: page.snippets.map((s) => ({
+                    ...s,
+                    position: { ...s.position, x: targetX },
+                  })),
+                }
+              : page
+          ),
+        }));
+      },
+
+      // Y位置一括適用（高さ位置揃え）
+      applySnippetYPositionToLayout: (pageId: string, targetY: number) => {
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
+
+        set((state) => ({
+          layoutPages: state.layoutPages.map((page) =>
+            page.id === pageId
+              ? {
+                  ...page,
+                  snippets: page.snippets.map((s) => ({
+                    ...s,
+                    position: { ...s.position, y: targetY },
+                  })),
+                }
+              : page
+          ),
+        }));
+      },
+
       // ページ余白の更新（後方互換用）
       updateLayoutPageMargin: (pageId: string, margin: number) => {
         set((state) => ({
