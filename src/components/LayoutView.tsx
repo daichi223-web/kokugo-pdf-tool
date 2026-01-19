@@ -64,7 +64,6 @@ export function LayoutView() {
     updateSettings,
     selectedPageNumbers,
     addSnippet,
-    applySnippetSizeToLayout,
     applySnippetWidthToLayout,
     applySnippetHeightToLayout,
     applySnippetXPositionToLayout,
@@ -489,46 +488,6 @@ export function LayoutView() {
           </div>
         </div>
 
-        {/* 配置基準点 */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-indigo-50 rounded border border-indigo-300">
-          <span className="text-xs text-indigo-700 font-medium">基準:</span>
-          <div className="flex bg-indigo-200 rounded p-0.5">
-            <button
-              className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
-                settings.layoutAnchor === 'right-top'
-                  ? 'bg-indigo-500 text-white shadow'
-                  : 'text-indigo-700 hover:bg-indigo-300'
-              }`}
-              onClick={() => updateSettings({ layoutAnchor: 'right-top' })}
-              title="右上固定（縦書き向け）"
-            >
-              右上
-            </button>
-            <button
-              className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
-                settings.layoutAnchor === 'center'
-                  ? 'bg-indigo-500 text-white shadow'
-                  : 'text-indigo-700 hover:bg-indigo-300'
-              }`}
-              onClick={() => updateSettings({ layoutAnchor: 'center' })}
-              title="中央固定"
-            >
-              中央
-            </button>
-            <button
-              className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
-                settings.layoutAnchor === 'left-top'
-                  ? 'bg-indigo-500 text-white shadow'
-                  : 'text-indigo-700 hover:bg-indigo-300'
-              }`}
-              onClick={() => updateSettings({ layoutAnchor: 'left-top' })}
-              title="左上固定（横書き向け）"
-            >
-              左上
-            </button>
-          </div>
-        </div>
-
         {/* テンプレート（トリミングモード時のみ） */}
         {mode === 'crop' && (
           <>
@@ -616,11 +575,30 @@ export function LayoutView() {
 
         <div className="w-px h-8 bg-gray-300" />
 
-        {/* 画像補正 */}
-        <div className="flex items-center gap-1 px-2 py-1 bg-yellow-50 rounded border border-yellow-300">
-          <span className="text-xs text-yellow-700 font-medium">補正</span>
-          <div className="flex items-center gap-0.5">
-            <span className="text-xs text-gray-500">濃</span>
+        {/* 画像補正 - 有効時は目立つ表示 */}
+        {(() => {
+          const isEnhancementActive =
+            (settings.imageEnhancement?.contrast ?? 1.0) !== 1.0 ||
+            (settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ||
+            settings.imageEnhancement?.autoLevels ||
+            settings.imageEnhancement?.unsharpMask ||
+            settings.imageEnhancement?.grayscale;
+          return (
+            <div className={`flex items-center gap-1 px-2 py-1 rounded border-2 transition-all ${
+              isEnhancementActive
+                ? 'bg-orange-100 border-orange-500 shadow-md'
+                : 'bg-yellow-50 border-yellow-300'
+            }`}>
+              <span className={`text-xs font-bold ${isEnhancementActive ? 'text-orange-700' : 'text-yellow-700'}`}>
+                補正{isEnhancementActive && ' ●'}
+              </span>
+          {/* コントラスト（濃さ） */}
+          <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+            (settings.imageEnhancement?.contrast ?? 1.0) !== 1.0 ? 'bg-red-100 ring-2 ring-red-400' : ''
+          }`}>
+            <span className={`text-xs font-medium ${(settings.imageEnhancement?.contrast ?? 1.0) !== 1.0 ? 'text-red-700' : 'text-gray-500'}`}>
+              濃さ
+            </span>
             <input
               type="range"
               min="0.5"
@@ -633,13 +611,22 @@ export function LayoutView() {
                   contrast: parseFloat(e.target.value),
                 },
               })}
-              className="w-12 h-4"
+              className="w-16 h-4 accent-red-500"
               title={`コントラスト: ${settings.imageEnhancement?.contrast ?? 1.0}`}
             />
-            <span className="text-xs w-6 text-center">{settings.imageEnhancement?.contrast?.toFixed(1) ?? '1.0'}</span>
+            <span className={`text-xs w-8 text-center font-bold ${
+              (settings.imageEnhancement?.contrast ?? 1.0) !== 1.0 ? 'text-red-700 bg-red-200 px-1 rounded' : ''
+            }`}>
+              {settings.imageEnhancement?.contrast?.toFixed(1) ?? '1.0'}
+            </span>
           </div>
-          <div className="flex items-center gap-0.5">
-            <span className="text-xs text-gray-500">明</span>
+          {/* 明るさ */}
+          <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+            (settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ? 'bg-blue-100 ring-2 ring-blue-400' : ''
+          }`}>
+            <span className={`text-xs font-medium ${(settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ? 'text-blue-700' : 'text-gray-500'}`}>
+              明るさ
+            </span>
             <input
               type="range"
               min="0.5"
@@ -652,10 +639,14 @@ export function LayoutView() {
                   brightness: parseFloat(e.target.value),
                 },
               })}
-              className="w-12 h-4"
+              className="w-16 h-4 accent-blue-500"
               title={`明るさ: ${settings.imageEnhancement?.brightness ?? 1.0}`}
             />
-            <span className="text-xs w-6 text-center">{settings.imageEnhancement?.brightness?.toFixed(2) ?? '1.00'}</span>
+            <span className={`text-xs w-8 text-center font-bold ${
+              (settings.imageEnhancement?.brightness ?? 1.0) !== 1.0 ? 'text-blue-700 bg-blue-200 px-1 rounded' : ''
+            }`}>
+              {settings.imageEnhancement?.brightness?.toFixed(2) ?? '1.00'}
+            </span>
           </div>
           <button
             className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.autoLevels ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
@@ -709,7 +700,9 @@ export function LayoutView() {
           >
             ↺
           </button>
-        </div>
+            </div>
+          );
+        })()}
 
         {/* PDF出力 & 印刷 */}
         <div className="flex items-center gap-1">
@@ -747,10 +740,108 @@ export function LayoutView() {
       {/* ===== ツールバー下段: 配置モード用ツール ===== */}
       {mode === 'layout' && (
         <div className="bg-white rounded-lg shadow px-4 py-2 flex items-center gap-3 flex-wrap">
-          {/* すべて配置グループ */}
+          {/* ★ 基準・余白・間隔グループ（関連機能をまとめる） */}
+          {activeLayout && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg border-2 border-indigo-300">
+              {/* 基準点 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-indigo-700 font-bold">基準:</span>
+                <div className="flex bg-indigo-200 rounded p-0.5">
+                  <button
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${settings.layoutAnchor === 'right-top' ? 'bg-indigo-500 text-white' : 'text-indigo-700 hover:bg-indigo-300'}`}
+                    onClick={() => updateSettings({ layoutAnchor: 'right-top' })}
+                    title="右上固定"
+                  >
+                    右上
+                  </button>
+                  <button
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${settings.layoutAnchor === 'center' ? 'bg-indigo-500 text-white' : 'text-indigo-700 hover:bg-indigo-300'}`}
+                    onClick={() => updateSettings({ layoutAnchor: 'center' })}
+                    title="中央固定"
+                  >
+                    中央
+                  </button>
+                  <button
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${settings.layoutAnchor === 'left-top' ? 'bg-indigo-500 text-white' : 'text-indigo-700 hover:bg-indigo-300'}`}
+                    onClick={() => updateSettings({ layoutAnchor: 'left-top' })}
+                    title="左上固定"
+                  >
+                    左上
+                  </button>
+                </div>
+              </div>
+              <span className="text-indigo-300">|</span>
+              {/* 余白 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-indigo-600">余白:</span>
+                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginX(activeLayout.id, Math.max(0, (activeLayout.marginX ?? 15) - 5))}>
+                  <ChevronLeft className="w-3 h-3 text-indigo-600" />
+                </button>
+                <span className="text-xs w-4 text-center text-indigo-700">{activeLayout.marginX ?? 15}</span>
+                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginX(activeLayout.id, (activeLayout.marginX ?? 15) + 5)}>
+                  <ChevronRight className="w-3 h-3 text-indigo-600" />
+                </button>
+                <span className="text-indigo-300">/</span>
+                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginY(activeLayout.id, Math.max(0, (activeLayout.marginY ?? 15) - 5))}>
+                  <ChevronUp className="w-3 h-3 text-indigo-600" />
+                </button>
+                <span className="text-xs w-4 text-center text-indigo-700">{activeLayout.marginY ?? 15}</span>
+                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginY(activeLayout.id, (activeLayout.marginY ?? 15) + 5)}>
+                  <ChevronDown className="w-3 h-3 text-indigo-600" />
+                </button>
+              </div>
+              {activeLayout.snippets.length > 0 && (
+                <>
+                  <span className="text-indigo-300">|</span>
+                  {/* 間隔 */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-indigo-600">間隔:</span>
+                    <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => { const g = pageGapX - 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
+                      <ChevronLeft className="w-3 h-3 text-indigo-600" />
+                    </button>
+                    <span className="text-xs w-6 text-center text-indigo-700">{pageGapX}</span>
+                    <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => { const g = pageGapX + 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
+                      <ChevronRight className="w-3 h-3 text-indigo-600" />
+                    </button>
+                    <span className="text-indigo-300">/</span>
+                    <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => { const g = pageGapY - 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
+                      <ChevronUp className="w-3 h-3 text-indigo-600" />
+                    </button>
+                    <span className="text-xs w-6 text-center text-indigo-700">{pageGapY}</span>
+                    <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => { const g = pageGapY + 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
+                      <ChevronDown className="w-3 h-3 text-indigo-600" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 配置グループ */}
+          {activeLayout && activeLayout.snippets.length > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded border border-purple-200">
+              <span className="text-xs text-purple-600 mr-1">配置</span>
+              <button
+                className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
+                onClick={() => repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top')}
+                title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}から配置`}
+              >
+                詰める
+              </button>
+              <button
+                className={`px-2 py-1 text-xs rounded ${autoRepack ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
+                onClick={() => setAutoRepack(!autoRepack)}
+                title={autoRepack ? '自動詰め: オン' : '自動詰め: オフ'}
+              >
+                自動{autoRepack ? '✓' : ''}
+              </button>
+            </div>
+          )}
+
+          {/* グリッド配置グループ */}
           {snippets.length > 0 && (
             <div className="flex items-center gap-1 px-2 py-1 bg-orange-50 rounded border border-orange-200">
-              <span className="text-xs text-orange-600 mr-1">配置</span>
+              <span className="text-xs text-orange-600 mr-1">グリッド</span>
               <select
                 className="border rounded px-1 py-0.5 text-xs"
                 value={gridPattern}
@@ -781,20 +872,46 @@ export function LayoutView() {
                 disabled={!activeLayoutPageId}
                 title="全スニペットをグリッド配置"
               >
-                全て配置
+                配置
               </button>
             </div>
           )}
 
-          {/* 自動全詰めオン/オフ */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
-            <span className="text-xs text-gray-500 mr-1">自動詰め</span>
+          {/* 揃えグループ（サイズ・位置をまとめる） */}
+          <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded border border-blue-200">
+            <span className="text-xs text-blue-600 mr-1">揃え</span>
             <button
-              className={`px-2 py-1 text-xs rounded ${autoRepack ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
-              onClick={() => setAutoRepack(!autoRepack)}
-              title={autoRepack ? '自動全詰め: オン' : '自動全詰め: オフ'}
+              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetWidthToLayout(activeLayout.id, selectedPlacedSnippet.size.width)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="幅を揃える"
             >
-              {autoRepack ? 'ON' : 'OFF'}
+              幅
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetHeightToLayout(activeLayout.id, selectedPlacedSnippet.size.height)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="高さを揃える"
+            >
+              高さ
+            </button>
+            <span className="text-blue-300">|</span>
+            <button
+              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetXPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.x)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="横位置を揃える"
+            >
+              X位置
+            </button>
+            <button
+              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
+              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetYPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.y)}
+              disabled={!activeLayout || !selectedPlacedSnippet}
+              title="縦位置を揃える"
+            >
+              Y位置
             </button>
           </div>
 
@@ -823,7 +940,6 @@ export function LayoutView() {
               onClick={handleAddPage}
             >
               <Plus className="w-3 h-3" />
-              追加
             </button>
           </div>
 
@@ -834,7 +950,7 @@ export function LayoutView() {
               className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 disabled:opacity-50"
               onClick={() => activeLayoutPageId && addTextElement(activeLayoutPageId, { x: 50, y: 50 })}
               disabled={!activeLayoutPageId}
-              title="テキストを追加"
+              title="テキスト"
             >
               <Type className="w-3 h-3" />
             </button>
@@ -863,126 +979,6 @@ export function LayoutView() {
               <Minus className="w-3 h-3" />
             </button>
           </div>
-
-          {/* 余白グループ */}
-          {activeLayout && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
-              <span className="text-xs text-gray-500 mr-1">余白</span>
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => updateLayoutPageMarginX(activeLayout.id, Math.max(0, (activeLayout.marginX ?? 15) - 5))}
-              >
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <span className="text-xs w-4 text-center">{activeLayout.marginX ?? 15}</span>
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => updateLayoutPageMarginX(activeLayout.id, (activeLayout.marginX ?? 15) + 5)}
-              >
-                <ChevronRight className="w-3 h-3" />
-              </button>
-              <span className="text-gray-300 mx-0.5">/</span>
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => updateLayoutPageMarginY(activeLayout.id, Math.max(0, (activeLayout.marginY ?? 15) - 5))}
-              >
-                <ChevronUp className="w-3 h-3" />
-              </button>
-              <span className="text-xs w-4 text-center">{activeLayout.marginY ?? 15}</span>
-              <button
-                className="p-0.5 border rounded hover:bg-gray-100"
-                onClick={() => updateLayoutPageMarginY(activeLayout.id, (activeLayout.marginY ?? 15) + 5)}
-              >
-                <ChevronDown className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
-          {/* サイズ揃えグループ */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded border border-blue-200">
-            <span className="text-xs text-blue-600 mr-1">揃える</span>
-            <button
-              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetWidthToLayout(activeLayout.id, selectedPlacedSnippet.size.width)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="幅を揃える（選択基準）"
-            >
-              幅
-            </button>
-            <button
-              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetHeightToLayout(activeLayout.id, selectedPlacedSnippet.size.height)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="高さを揃える（選択基準）"
-            >
-              高さ
-            </button>
-            <button
-              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetSizeToLayout(activeLayout.id, selectedPlacedSnippet.size)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="サイズを揃える（選択基準）"
-            >
-              両方
-            </button>
-          </div>
-
-          {/* 位置揃えグループ */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-cyan-50 rounded border border-cyan-200">
-            <span className="text-xs text-cyan-600 mr-1">位置</span>
-            <button
-              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetXPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.x)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="横位置を揃える（選択基準）"
-            >
-              横
-            </button>
-            <button
-              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetYPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.y)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="縦位置を揃える（選択基準）"
-            >
-              縦
-            </button>
-          </div>
-
-          {/* 自動配置グループ */}
-          {activeLayout && activeLayout.snippets.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded border border-purple-200">
-              <span className="text-xs text-purple-600 mr-1">配置</span>
-              <button
-                className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                onClick={() => repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top')}
-                title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}から配置`}
-              >
-                {settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}
-              </button>
-            </div>
-          )}
-
-          {/* 間隔グループ（マイナス対応で重ねも可能） */}
-          {activeLayout && activeLayout.snippets.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">
-              <span className="text-xs text-gray-500 mr-1">間隔</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapX - 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <span className="text-xs w-6 text-center">{pageGapX}</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapX + 10; setPageGapX(g); adjustPageSnippetsGap(activeLayout.id, g, pageGapY); }}>
-                <ChevronRight className="w-3 h-3" />
-              </button>
-              <span className="text-gray-300 mx-0.5">/</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapY - 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
-                <ChevronUp className="w-3 h-3" />
-              </button>
-              <span className="text-xs w-6 text-center">{pageGapY}</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => { const g = pageGapY + 10; setPageGapY(g); adjustPageSnippetsGap(activeLayout.id, pageGapX, g); }}>
-                <ChevronDown className="w-3 h-3" />
-              </button>
-            </div>
-          )}
 
           {/* 全ページ一括グループ */}
           <div className="flex items-center gap-1 px-2 py-1 bg-green-50 rounded border border-green-200">
