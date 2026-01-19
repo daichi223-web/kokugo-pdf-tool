@@ -61,7 +61,6 @@ export function LayoutView() {
     moveLayoutPage,
     setActiveLayoutPage,
     updateSettings,
-    toggleSnippetPageBreak,
     selectedPageNumbers,
     addSnippet,
     applySnippetSizeToLayout,
@@ -85,8 +84,6 @@ export function LayoutView() {
     repackAllSnippets,
     repackAcrossPages,
     unifyAllPagesSnippetSize,
-    setActivePage,
-    setActiveFile,
     arrangeAllSnippetsInGrid,
   } = useAppStore();
 
