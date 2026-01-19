@@ -144,6 +144,10 @@ export function applyImageEnhancement(
   const enhancedCtx = enhancedCanvas.getContext('2d');
   if (!enhancedCtx) return canvas;
 
+  // 背景を白で塗りつぶし（透明背景対策）
+  enhancedCtx.fillStyle = 'white';
+  enhancedCtx.fillRect(0, 0, enhancedCanvas.width, enhancedCanvas.height);
+
   // シャープ化: imageSmoothingEnabledをOFFに
   if (enhancement.sharpness) {
     enhancedCtx.imageSmoothingEnabled = false;
