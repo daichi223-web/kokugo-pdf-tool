@@ -98,8 +98,9 @@ export function LayoutView() {
   const [pageGapY, setPageGapY] = useState(0); // ページ内間隔調整（縦）
   const [autoRepack, setAutoRepack] = useState(true); // 自動全詰め機能
 
-  // 再トリミング時の元のレイアウトページIDを記憶
+  // 再トリミング時の元のレイアウトページIDとスクロール位置を記憶
   const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
+  const reCropSourceScrollTopRef = useRef<number>(0);
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | 'auto'>('4x2');
   const [gridGapX, setGridGapX] = useState(0); // グリッド配置の間隔（横）
   const [gridGapY, setGridGapY] = useState(0); // グリッド配置の間隔（縦）
@@ -215,24 +216,26 @@ export function LayoutView() {
     return () => window.removeEventListener('resize', handleResize);
   }, [mode, calculateLayoutFitZoom, calculateCropFitZoom]);
 
-  // 再トリミングモード開始時に自動でトリミングモードに切り替え＆元ページへ移動
+  // 再トリミングモード開始時に自動でトリミングモードに切り替え
   useEffect(() => {
     if (reCropSnippetId) {
-      // 現在のレイアウトページIDを記憶（再トリミング完了後に戻るため）
+      // 現在のレイアウトページIDとスクロール位置を記憶（再トリミング完了後に戻るため）
       reCropSourceLayoutPageIdRef.current = activeLayoutPageId;
-
-      // 再トリミング対象のスニペットのソースファイル・ページに自動移動
-      const snippet = snippets.find(s => s.id === reCropSnippetId);
-      if (snippet) {
-        // ファイルIDも設定（別ファイルからのスニペットの場合に必要）
-        if (snippet.sourceFileId !== activeFileId) {
-          setActiveFile(snippet.sourceFileId);
-        }
-        setActivePage(snippet.sourcePageNumber);
+      if (layoutContainerRef.current) {
+        reCropSourceScrollTopRef.current = layoutContainerRef.current.scrollTop;
       }
+
+      // トリミングモードに切り替え
+      // 注: reCropSourcePageはスニペットのsourceFileId/sourcePageNumberから直接取得するため、
+      // setActivePage/setActiveFileは呼ばない（PDFのページ選択状態を変えない）
       setMode('crop');
+
+      // スクロール位置を上部にリセット（再トリミング画面を上部に表示）
+      if (layoutContainerRef.current) {
+        layoutContainerRef.current.scrollTop = 0;
+      }
     }
-  }, [reCropSnippetId, snippets, setActivePage, setActiveFile, activeFileId, activeLayoutPageId]);
+  }, [reCropSnippetId, activeLayoutPageId]);
 
   const handleAddPage = () => {
     addLayoutPage(newPageSize, newPageOrientation);
@@ -951,11 +954,17 @@ export function LayoutView() {
                     onClick={() => {
                       setReCropSnippet(null);
                       setMode('layout'); // キャンセル時も配置モードに戻る
-                      // 元のレイアウトページに戻る
+                      // 元のレイアウトページとスクロール位置に戻る
                       if (reCropSourceLayoutPageIdRef.current) {
                         setActiveLayoutPage(reCropSourceLayoutPageIdRef.current);
                         reCropSourceLayoutPageIdRef.current = null;
                       }
+                      // スクロール位置を復元（少し遅延させてDOM更新後に実行）
+                      setTimeout(() => {
+                        if (layoutContainerRef.current) {
+                          layoutContainerRef.current.scrollTop = reCropSourceScrollTopRef.current;
+                        }
+                      }, 50);
                     }}
                   >
                     キャンセル
@@ -973,6 +982,7 @@ export function LayoutView() {
                     batchMode={false}
                     onCropComplete={() => {
                       const sourceLayoutPageId = reCropSourceLayoutPageIdRef.current;
+                      const sourceScrollTop = reCropSourceScrollTopRef.current;
                       setReCropSnippet(null);
                       setMode('layout'); // 再トリミング完了後、配置モードに戻る
                       // 元のレイアウトページに戻る
@@ -993,6 +1003,12 @@ export function LayoutView() {
                               adjustPageSnippetsGap(targetPageId, pageGapX, pageGapY);
                             }, 50);
                           }
+                          // スクロール位置を復元
+                          setTimeout(() => {
+                            if (layoutContainerRef.current) {
+                              layoutContainerRef.current.scrollTop = sourceScrollTop;
+                            }
+                          }, 100);
                         }, 50);
                       }, 100);
                     }}
