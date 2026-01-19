@@ -138,13 +138,13 @@ export const useAppStore = create<Store>()(
 
               const endRender = isBenchmarkMode ? startMeasure(`render-page-${pageNum}`) : null;
               const { settings } = get();
-              // 取り込み時は軽めの補正（自動レベルのみ）
+              // 取り込み時のデフォルト補正
               const importEnhancement = {
                 contrast: 1.0,
-                brightness: 1.0,
-                textDarkness: 1.0,
+                brightness: 1.1,      // 少し明るく
+                textDarkness: 0.8,    // 文字を濃く
                 sharpness: false,
-                autoLevels: true, // 白を白に、黒を黒に
+                autoLevels: true,     // 白を白に、黒を黒に
                 unsharpMask: false,
                 grayscale: false,
               };

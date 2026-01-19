@@ -597,32 +597,52 @@ export async function printLayoutDirectly(
     const marginX = mmToPx(layoutPage.marginX ?? layoutPage.margin ?? 15, screenDpi);
     const marginY = mmToPx(layoutPage.marginY ?? layoutPage.margin ?? 15, screenDpi);
 
-    // 画像補正フィルターを構築
-    const filters: string[] = [];
-    if (enhancement?.contrast && enhancement.contrast !== 1.0) {
-      filters.push(`contrast(${enhancement.contrast})`);
-    }
-    if (enhancement?.brightness && enhancement.brightness !== 1.0) {
-      filters.push(`brightness(${enhancement.brightness})`);
-    }
-    const filterStyle = filters.length > 0 ? `filter: ${filters.join(' ')};` : '';
-    const imageRenderingStyle = enhancement?.sharpness ? 'image-rendering: crisp-edges;' : '';
-
-    // スニペットを配置
+    // スニペットを配置（補正を適用）
     for (const placedSnippet of layoutPage.snippets) {
       const snippet = snippets.find((s) => s.id === placedSnippet.snippetId);
       if (!snippet || !snippet.imageData) continue;
 
+      // 画像補正を適用
+      let finalImageData = snippet.imageData;
+      if (enhancement) {
+        const needsEnhancement =
+          (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0) ||
+          enhancement.contrast !== 1.0 ||
+          enhancement.brightness !== 1.0 ||
+          enhancement.autoLevels ||
+          enhancement.unsharpMask ||
+          enhancement.grayscale;
+        if (needsEnhancement) {
+          // Canvasで補正を適用
+          const tempImg = new Image();
+          tempImg.src = snippet.imageData;
+          await new Promise<void>((resolve) => {
+            tempImg.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = tempImg.width;
+              canvas.height = tempImg.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(tempImg, 0, 0);
+                const enhancedCanvas = applyImageEnhancement(canvas, enhancement);
+                finalImageData = enhancedCanvas.toDataURL('image/png');
+              }
+              resolve();
+            };
+            tempImg.onerror = () => resolve();
+          });
+        }
+      }
+
       const img = document.createElement('img');
-      img.src = snippet.imageData;
+      img.src = finalImageData;
       img.style.cssText = `
         position: absolute;
         left: ${marginX + placedSnippet.position.x}px;
         top: ${marginY + placedSnippet.position.y}px;
         width: ${placedSnippet.size.width}px;
         height: ${placedSnippet.size.height}px;
-        ${filterStyle}
-        ${imageRenderingStyle}
+        ${enhancement?.sharpness ? 'image-rendering: crisp-edges;' : ''}
       `;
       pageDiv.appendChild(img);
     }
