@@ -759,17 +759,10 @@ export function LayoutView() {
               <span className="text-xs text-purple-600 mr-1">配置</span>
               <button
                 className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                onClick={() => repackAllSnippets(activeLayout.id, 'right-top')}
-                title="右上から配置（縦書き向け）"
+                onClick={() => repackAllSnippets(activeLayout.id, settings.writingDirection === 'vertical' ? 'right-top' : 'left-top')}
+                title={settings.writingDirection === 'vertical' ? '右上から配置（縦書き）' : '左上から配置（横書き）'}
               >
-                右上
-              </button>
-              <button
-                className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                onClick={() => repackAllSnippets(activeLayout.id, 'left-top')}
-                title="左上から配置（横書き向け）"
-              >
-                左上
+                {settings.writingDirection === 'vertical' ? '右上' : '左上'}
               </button>
             </div>
           )}
@@ -945,13 +938,23 @@ export function LayoutView() {
                     onCropComplete={() => {
                       setReCropSnippet(null);
                       setMode('layout'); // 再トリミング完了後、配置モードに戻る
-                      // 自動サイズ揃え＆自動全詰め（少し遅延させてスニペット更新後に実行）
+                      // 自動サイズ揃え → 全詰め → 間隔調整を順番に実行
                       setTimeout(() => {
                         handleAutoUnifySize();
-                        handleAutoRepack();
+                        // サイズ更新後に全詰め
+                        setTimeout(() => {
+                          handleAutoRepack();
+                          // 全詰め後にUIで設定した間隔で詰め直す（マイナス値で重ねて余白を相殺）
+                          if (autoRepack && activeLayoutPageId) {
+                            setTimeout(() => {
+                              adjustPageSnippetsGap(activeLayoutPageId, pageGapX, pageGapY);
+                            }, 50);
+                          }
+                        }, 50);
                       }, 100);
                     }}
                     updateSnippetId={reCropSnippetId}
+                    initialCropArea={reCropSnippet.cropArea}
                   />
                 ) : (
                   <div className="text-center text-red-500 py-4">

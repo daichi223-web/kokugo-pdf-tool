@@ -110,6 +110,11 @@ export function LayoutCanvas({
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
 
+      // Ctrl/Cmdキーが押されていない場合は複数選択をクリア
+      if (!e.ctrlKey && !e.metaKey) {
+        clearPlacedSnippetSelection();
+      }
+
       setDragging(snippetId);
       setSelectedSnippet(snippetId);
       // 余白を含めた表示位置からのオフセットを計算
@@ -118,7 +123,7 @@ export function LayoutCanvas({
         y: (e.clientY - rect.top) / zoom - marginYPx - placed.position.y,
       });
     },
-    [layoutPage.snippets, zoom, setSelectedSnippet, justDropped, marginXPx, marginYPx]
+    [layoutPage.snippets, zoom, setSelectedSnippet, clearPlacedSnippetSelection, justDropped, marginXPx, marginYPx]
   );
 
   // リサイズ開始

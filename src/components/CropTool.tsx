@@ -27,6 +27,7 @@ interface CropToolProps {
   onBatchCrop?: (cropArea: CropArea) => void;
   onCropComplete?: () => void;
   updateSnippetId?: string | null;  // 更新モード用：既存スニペットのID
+  initialCropArea?: CropArea | null;  // 再トリミング用：初期選択範囲
 }
 
 type DragMode = 'none' | 'select' | 'move' | 'resize-nw' | 'resize-n' | 'resize-ne' | 'resize-e' | 'resize-se' | 'resize-s' | 'resize-sw' | 'resize-w';
@@ -45,6 +46,7 @@ export function CropTool({
   onBatchCrop,
   onCropComplete,
   updateSnippetId,
+  initialCropArea,
 }: CropToolProps) {
   const { addSnippet, updateSnippet } = useAppStore();
 
@@ -84,6 +86,20 @@ export function CropTool({
     setSelection(newSelection);
     onTemplateApplied?.();
   }, [templateToApply, imageSize, onTemplateApplied]);
+
+  // 再トリミング用：初期選択範囲を設定
+  useEffect(() => {
+    if (!initialCropArea || imageSize.width === 0 || imageSize.height === 0) return;
+    // テンプレートが適用される場合はそちらを優先
+    if (templateToApply) return;
+
+    const newSelection = clampSelectionToImage(
+      initialCropArea,
+      imageSize.width,
+      imageSize.height
+    );
+    setSelection(newSelection);
+  }, [initialCropArea, imageSize, templateToApply]);
 
   // 座標変換（クライアント座標 → 画像座標）
   const clientToImage = useCallback((clientX: number, clientY: number): { x: number; y: number } => {

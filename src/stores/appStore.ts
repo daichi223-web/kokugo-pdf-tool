@@ -438,17 +438,34 @@ export const useAppStore = create<Store>()(
           // cropAreaとcropZoomが更新された場合、配置済みスニペットのサイズも更新
           let newLayoutPages = state.layoutPages;
           if (updates.cropArea && updates.cropZoom) {
-            const newSize = {
-              width: updates.cropArea.width * updates.cropZoom,
-              height: updates.cropArea.height * updates.cropZoom,
-            };
+            const newCropWidth = updates.cropArea.width * updates.cropZoom;
+            const newCropHeight = updates.cropArea.height * updates.cropZoom;
+            const newAspectRatio = newCropWidth / newCropHeight;
+            const writingDirection = state.settings.writingDirection;
+
             newLayoutPages = state.layoutPages.map((page) => ({
               ...page,
-              snippets: page.snippets.map((placed) =>
-                placed.snippetId === snippetId
-                  ? { ...placed, size: newSize }
-                  : placed
-              ),
+              snippets: page.snippets.map((placed) => {
+                if (placed.snippetId !== snippetId) return placed;
+
+                let newSize: Size;
+                if (writingDirection === 'vertical') {
+                  // 縦書き：高さを維持し、幅をアスペクト比で計算
+                  const keepHeight = placed.size.height;
+                  newSize = {
+                    width: keepHeight * newAspectRatio,
+                    height: keepHeight,
+                  };
+                } else {
+                  // 横書き：幅を維持し、高さをアスペクト比で計算
+                  const keepWidth = placed.size.width;
+                  newSize = {
+                    width: keepWidth,
+                    height: keepWidth / newAspectRatio,
+                  };
+                }
+                return { ...placed, size: newSize };
+              }),
             }));
           }
 
