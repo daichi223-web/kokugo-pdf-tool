@@ -51,6 +51,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   imageEnhancement: {
     contrast: 1.0,    // コントラスト（1.0がデフォルト）
     brightness: 1.0,  // 明るさ（1.0がデフォルト）
+    textDarkness: 1.0, // 文字の濃さ（1.0がデフォルト、小さいほど濃い）
     sharpness: false, // シャープ化（デフォルトOFF）
     autoLevels: false, // オートレベル（デフォルトOFF）
     unsharpMask: false, // アンシャープマスク（デフォルトOFF）

@@ -89,6 +89,30 @@ function applyGrayscale(imageData: ImageData): void {
 }
 
 /**
+ * ガンマ補正（文字を濃くする）
+ * gamma < 1.0: 暗い部分（文字）をより濃く、白い背景はほぼそのまま
+ * gamma > 1.0: 暗い部分を薄く
+ */
+function applyGammaCorrection(imageData: ImageData, gamma: number): void {
+  if (gamma === 1.0) return;
+
+  const data = imageData.data;
+  // ガンマ補正用のルックアップテーブルを作成（高速化）
+  const gammaLUT = new Uint8Array(256);
+  const inverseGamma = 1.0 / gamma;
+  for (let i = 0; i < 256; i++) {
+    gammaLUT[i] = Math.min(255, Math.max(0, Math.round(255 * Math.pow(i / 255, inverseGamma))));
+  }
+
+  // ルックアップテーブルを使って変換
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = gammaLUT[data[i]];
+    data[i + 1] = gammaLUT[data[i + 1]];
+    data[i + 2] = gammaLUT[data[i + 2]];
+  }
+}
+
+/**
  * 画像補正を適用
  * コントラスト・明るさ・シャープ化・オートレベル・アンシャープマスク・グレースケール
  */
@@ -103,6 +127,7 @@ export function applyImageEnhancement(
   const needsProcessing =
     enhancement.contrast !== 1.0 ||
     enhancement.brightness !== 1.0 ||
+    (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0) ||
     enhancement.sharpness ||
     enhancement.autoLevels ||
     enhancement.unsharpMask ||
@@ -143,7 +168,13 @@ export function applyImageEnhancement(
   enhancedCtx.filter = 'none';
 
   // ピクセル単位の処理が必要な場合
-  if (enhancement.autoLevels || enhancement.unsharpMask || enhancement.grayscale) {
+  const needsPixelProcessing =
+    enhancement.autoLevels ||
+    enhancement.unsharpMask ||
+    enhancement.grayscale ||
+    (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0);
+
+  if (needsPixelProcessing) {
     const imageData = enhancedCtx.getImageData(0, 0, enhancedCanvas.width, enhancedCanvas.height);
 
     // グレースケール変換（最初に実行）
@@ -154,6 +185,11 @@ export function applyImageEnhancement(
     // オートレベル補正
     if (enhancement.autoLevels) {
       applyAutoLevels(imageData);
+    }
+
+    // ガンマ補正（文字を濃くする）
+    if (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0) {
+      applyGammaCorrection(imageData, enhancement.textDarkness);
     }
 
     // アンシャープマスク（最後に実行）

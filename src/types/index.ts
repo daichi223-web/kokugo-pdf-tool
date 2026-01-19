@@ -174,6 +174,7 @@ export interface ProgressInfo {
 export interface ImageEnhancement {
   contrast: number;    // コントラスト 0.5〜2.0（1.0がデフォルト）
   brightness: number;  // 明るさ 0.5〜1.5（1.0がデフォルト）
+  textDarkness: number; // 文字の濃さ 0.5〜2.0（1.0がデフォルト、小さいほど濃い）ガンマ補正
   sharpness: boolean;  // シャープ化（アンチエイリアス無効）
   autoLevels: boolean; // オートレベル補正（白を白に、黒を黒に）
   unsharpMask: boolean; // アンシャープマスク（エッジ強調）
