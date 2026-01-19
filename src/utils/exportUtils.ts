@@ -11,7 +11,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import type { LayoutPage, Snippet, TextElement, ImageEnhancement } from '../types';
+import type { LayoutPage, Snippet, TextElement, ImageEnhancement, AppSettings } from '../types';
 import { getPaperDimensions } from '../types';
 import { applyRubyBrackets } from './ocrUtils';
 import { mmToPx } from './helpers';
@@ -359,12 +359,14 @@ async function processImageForPdf(
  * @param snippets スニペット配列
  * @param quality 出力品質
  * @param enhancement 画像補正設定（オプション）
+ * @param settings アプリ設定（縁取り等）
  */
 export async function exportLayoutToPDF(
   layoutPages: LayoutPage[],
   snippets: Snippet[],
   quality: PdfQuality = 'high',
-  enhancement?: ImageEnhancement
+  enhancement?: ImageEnhancement,
+  settings?: Partial<AppSettings>
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
   const qualitySettings = PDF_QUALITY_PRESETS[quality];
@@ -408,6 +410,19 @@ export async function exportLayoutToPDF(
           width,
           height,
         });
+
+        // 縁取りを描画
+        if (settings?.showSnippetBorder) {
+          const borderWidth = mmToPx(settings.snippetBorderWidth ?? 0.5, pdfDpi);
+          page.drawRectangle({
+            x,
+            y,
+            width,
+            height,
+            borderColor: rgb(0, 0, 0),
+            borderWidth,
+          });
+        }
       } catch (error) {
         console.error('Failed to embed snippet:', error);
       }
@@ -553,11 +568,13 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
  * @param layoutPages レイアウトページ配列
  * @param snippets スニペット配列
  * @param enhancement 画像補正設定（オプション）
+ * @param settings アプリ設定（縁取り等）
  */
 export async function printLayoutDirectly(
   layoutPages: LayoutPage[],
   snippets: Snippet[],
-  enhancement?: ImageEnhancement
+  enhancement?: ImageEnhancement,
+  settings?: Partial<AppSettings>
 ): Promise<void> {
   // 印刷用コンテナを作成
   const printContainer = document.createElement('div');
@@ -634,6 +651,9 @@ export async function printLayoutDirectly(
         }
       }
 
+      // 縁取りの幅（px）
+      const borderWidthPx = settings?.showSnippetBorder ? mmToPx(settings.snippetBorderWidth ?? 0.5, screenDpi) : 0;
+
       const img = document.createElement('img');
       img.src = finalImageData;
       img.style.cssText = `
@@ -643,6 +663,7 @@ export async function printLayoutDirectly(
         width: ${placedSnippet.size.width}px;
         height: ${placedSnippet.size.height}px;
         ${enhancement?.sharpness ? 'image-rendering: crisp-edges;' : ''}
+        ${settings?.showSnippetBorder ? `border: ${borderWidthPx}px solid black; box-sizing: border-box;` : ''}
       `;
       pageDiv.appendChild(img);
     }

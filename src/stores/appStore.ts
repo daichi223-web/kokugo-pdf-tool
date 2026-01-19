@@ -58,6 +58,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     grayscale: false,  // グレースケール（デフォルトOFF）
   },
   layoutAnchor: 'right-top', // デフォルトは右上（縦書き用）
+  showSnippetBorder: false, // スニペット縁取り（デフォルトOFF）
+  snippetBorderWidth: 0.5, // 縁取り幅（mm）
 };
 
 interface Store extends AppState, AppActions {

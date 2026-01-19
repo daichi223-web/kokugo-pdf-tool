@@ -100,8 +100,7 @@ export function LayoutView() {
   const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
   const reCropSourceScrollTopRef = useRef<number>(0);
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | 'auto'>('4x2');
-  const [gridGapX, setGridGapX] = useState(0); // グリッド配置の間隔（横）
-  const [gridGapY, setGridGapY] = useState(0); // グリッド配置の間隔（縦）
+  const [arrangeScope, setArrangeScope] = useState<'page' | 'all'>('page'); // 配置スコープ
   const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard'); // PDF出力画質
   const [isPrinting, setIsPrinting] = useState(false);
   const [showEnhancementPreview, setShowEnhancementPreview] = useState(false); // 補正プレビュー
@@ -387,8 +386,8 @@ export function LayoutView() {
       rows = GRID_PATTERNS[gridPattern].rows;
     }
 
-    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, gridGapX, gridGapY);
-  }, [activeLayoutPageId, snippets.length, gridPattern, gridGapX, gridGapY, arrangeAllSnippetsInGrid]);
+    arrangeAllSnippetsInGrid(activeLayoutPageId, cols, rows, pageGapX, pageGapY);
+  }, [activeLayoutPageId, snippets.length, gridPattern, pageGapX, pageGapY, arrangeAllSnippetsInGrid]);
 
   // PDF出力
   const handleExportPDF = useCallback(async () => {
@@ -396,7 +395,7 @@ export function LayoutView() {
 
     setIsExporting(true);
     try {
-      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality, settings.imageEnhancement);
+      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality, settings.imageEnhancement, settings);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -417,7 +416,7 @@ export function LayoutView() {
 
     setIsPrinting(true);
     try {
-      await printLayoutDirectly(layoutPages, snippets, settings.imageEnhancement);
+      await printLayoutDirectly(layoutPages, snippets, settings.imageEnhancement, settings);
     } catch (error) {
       console.error('印刷エラー:', error);
       alert('印刷の準備に失敗しました');
@@ -467,7 +466,7 @@ export function LayoutView() {
   return (
     <div className="h-full flex flex-col gap-2">
       {/* ===== ツールバー上段: 基本設定 ===== */}
-      <div className="bg-white rounded-lg shadow px-4 py-2 flex items-center gap-4">
+      <div className="bg-white rounded-lg shadow px-2 md:px-4 py-2 flex items-center gap-2 md:gap-4 flex-wrap">
         {/* モード切り替え */}
         <div className="flex bg-gray-200 rounded-lg p-1">
           <button
@@ -614,6 +613,17 @@ export function LayoutView() {
           <Grid className="w-5 h-5" />
         </button>
 
+        {/* 縁取り */}
+        <button
+          className={`px-2 py-1.5 text-sm rounded font-medium ${
+            settings.showSnippetBorder ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+          onClick={() => updateSettings({ showSnippetBorder: !settings.showSnippetBorder })}
+          title="スニペットに黒い縁取りを追加"
+        >
+          縁取り
+        </button>
+
         <div className="w-px h-8 bg-gray-300" />
 
         {/* 画像補正ボタン */}
@@ -672,7 +682,7 @@ export function LayoutView() {
 
       {/* ===== ツールバー下段: 配置モード用ツール ===== */}
       {mode === 'layout' && (
-        <div className="bg-white rounded-lg shadow px-4 py-2 flex items-center gap-3 flex-wrap">
+        <div className="bg-white rounded-lg shadow px-2 md:px-4 py-2 flex items-center gap-2 md:gap-3 flex-wrap text-xs md:text-sm">
           {/* ★ 基準・余白・間隔グループ（関連機能をまとめる） */}
           {activeLayout && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg border-2 border-indigo-300">
@@ -750,33 +760,31 @@ export function LayoutView() {
             </div>
           )}
 
-          {/* 配置グループ */}
-          {activeLayout && activeLayout.snippets.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 rounded border border-purple-200">
-              <span className="text-xs text-purple-600 mr-1">配置</span>
-              <button
-                className="px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600"
-                onClick={() => repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top')}
-                title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}から配置`}
-              >
-                詰める
-              </button>
-              <button
-                className={`px-2 py-1 text-xs rounded ${autoRepack ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
-                onClick={() => setAutoRepack(!autoRepack)}
-                title={autoRepack ? '自動詰め: オン' : '自動詰め: オフ'}
-              >
-                自動{autoRepack ? '✓' : ''}
-              </button>
-            </div>
-          )}
-
-          {/* グリッド配置グループ */}
+          {/* 配置グループ（統合） */}
           {snippets.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 bg-orange-50 rounded border border-orange-200">
-              <span className="text-xs text-orange-600 mr-1">グリッド</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-lg border-2 border-purple-300">
+              <span className="text-xs text-purple-700 font-bold">配置</span>
+              {/* スコープ選択 */}
+              <div className="flex bg-purple-200 rounded p-0.5">
+                <button
+                  className={`px-2 py-0.5 text-xs font-medium rounded ${arrangeScope === 'page' ? 'bg-purple-500 text-white' : 'text-purple-700 hover:bg-purple-300'}`}
+                  onClick={() => setArrangeScope('page')}
+                  title="現在のページ内で配置"
+                >
+                  ページ
+                </button>
+                <button
+                  className={`px-2 py-0.5 text-xs font-medium rounded ${arrangeScope === 'all' ? 'bg-purple-500 text-white' : 'text-purple-700 hover:bg-purple-300'}`}
+                  onClick={() => setArrangeScope('all')}
+                  title="全ページを跨いで配置"
+                >
+                  全体
+                </button>
+              </div>
+              <span className="text-purple-300">|</span>
+              {/* グリッドパターン */}
               <select
-                className="border rounded px-1 py-0.5 text-xs"
+                className="border border-purple-300 rounded px-1 py-0.5 text-xs bg-white"
                 value={gridPattern}
                 onChange={(e) => setGridPattern(e.target.value as typeof gridPattern)}
               >
@@ -784,28 +792,46 @@ export function LayoutView() {
                   <option key={key} value={key}>{value.label}</option>
                 ))}
               </select>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapX(gridGapX - 10)} title="横間隔を狭める">
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <span className="text-xs w-6 text-center">{gridGapX}</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapX(gridGapX + 10)} title="横間隔を広げる">
-                <ChevronRight className="w-3 h-3" />
-              </button>
-              <span className="text-gray-300">/</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapY(gridGapY - 10)} title="縦間隔を狭める">
-                <ChevronUp className="w-3 h-3" />
-              </button>
-              <span className="text-xs w-6 text-center">{gridGapY}</span>
-              <button className="p-0.5 border rounded hover:bg-gray-100" onClick={() => setGridGapY(gridGapY + 10)} title="縦間隔を広げる">
-                <ChevronDown className="w-3 h-3" />
-              </button>
+              {/* 配置ボタン */}
               <button
-                className="px-2 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50"
-                onClick={handleArrangeAll}
-                disabled={!activeLayoutPageId}
-                title="全スニペットをグリッド配置"
+                className="px-3 py-1 text-xs bg-purple-500 text-white rounded font-bold hover:bg-purple-600 disabled:opacity-50"
+                onClick={() => {
+                  if (arrangeScope === 'all') {
+                    // 全体配置
+                    repackAcrossPages(settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
+                  } else if (activeLayoutPageId) {
+                    // ページ内グリッド配置
+                    handleArrangeAll();
+                  }
+                }}
+                disabled={arrangeScope === 'page' && !activeLayoutPageId}
+                title={arrangeScope === 'all' ? '全ページを跨いで自動配置' : '現在のページにグリッド配置'}
               >
-                配置
+                自動配置
+              </button>
+              {/* 詰めるボタン */}
+              {activeLayout && activeLayout.snippets.length > 0 && (
+                <button
+                  className="px-2 py-1 text-xs bg-purple-400 text-white rounded hover:bg-purple-500"
+                  onClick={() => {
+                    if (arrangeScope === 'all') {
+                      repackAcrossPages(settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
+                    } else {
+                      repackAllSnippets(activeLayout.id, settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top');
+                    }
+                  }}
+                  title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で詰める`}
+                >
+                  詰める
+                </button>
+              )}
+              {/* 自動トグル */}
+              <button
+                className={`px-2 py-1 text-xs rounded ${autoRepack ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}
+                onClick={() => setAutoRepack(!autoRepack)}
+                title={autoRepack ? '自動詰め: オン' : '自動詰め: オフ'}
+              >
+                自動{autoRepack ? '✓' : ''}
               </button>
             </div>
           )}
@@ -913,24 +939,16 @@ export function LayoutView() {
             </button>
           </div>
 
-          {/* 全ページ一括グループ */}
-          <div className="flex items-center gap-1 px-2 py-1 bg-green-50 rounded border border-green-200">
-            <span className="text-xs text-green-600 mr-1">全ページ</span>
-            <button
-              className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-              onClick={() => repackAcrossPages(settings.layoutAnchor === 'left-top' ? 'left-top' : 'right-top')}
-              title="全ページを跨いで自動配置"
-            >
-              配置
-            </button>
+          {/* 全ページサイズ統一（スコープ:全体時のみ表示） */}
+          {arrangeScope === 'all' && (
             <button
               className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
               onClick={() => unifyAllPagesSnippetSize()}
-              title="全ページのサイズを統一"
+              title="全ページのスニペットサイズを統一"
             >
-              サイズ
+              全サイズ統一
             </button>
-          </div>
+          )}
 
           {/* 選択時ツール（2個以上選択時） */}
           {activeLayout && selectedSnippetIds.length >= 2 && (

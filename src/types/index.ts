@@ -193,6 +193,8 @@ export interface AppSettings {
   pdfRenderScale: number; // PDF読み込み時の解像度スケール（2〜4、デフォルト2）
   imageEnhancement: ImageEnhancement; // 画像補正設定
   layoutAnchor: LayoutAnchor; // 配置基準点（間隔・余白調整時の固定位置）
+  showSnippetBorder: boolean; // スニペットに黒い縁取りを表示
+  snippetBorderWidth: number; // 縁取りの幅（mm）
 }
 
 // ストア関連の型

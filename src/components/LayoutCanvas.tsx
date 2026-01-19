@@ -47,6 +47,7 @@ export function LayoutCanvas({
     selectedShapeId,
     setSelectedShapeId,
     setReCropSnippet,
+    settings,
   } = useAppStore();
 
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -622,6 +623,9 @@ export function LayoutCanvas({
         const isSelected = selectedSnippetId === placed.snippetId;
         const isMultiSelected = selectedSnippetIds.includes(placed.snippetId);
 
+        // 縁取りの幅（px）
+        const borderWidthPx = settings.showSnippetBorder ? mmToPx(settings.snippetBorderWidth, 96) * zoom : 0;
+
         return (
           <div
             key={placed.snippetId}
@@ -631,8 +635,10 @@ export function LayoutCanvas({
               top: (marginYPx + placed.position.y) * zoom,
               width: placed.size.width * zoom,
               height: placed.size.height * zoom,
-              borderColor: isMultiSelected ? '#f59e0b' : undefined,
-              borderWidth: isMultiSelected ? '2px' : undefined,
+              borderColor: isMultiSelected ? '#f59e0b' : (settings.showSnippetBorder ? '#000000' : undefined),
+              borderWidth: isMultiSelected ? '2px' : (settings.showSnippetBorder ? `${borderWidthPx}px` : undefined),
+              borderStyle: settings.showSnippetBorder ? 'solid' : undefined,
+              boxSizing: 'border-box',
             }}
             onMouseDown={(e) => handleDragStart(e, placed.snippetId)}
             onClick={(e) => {
