@@ -167,6 +167,13 @@ export interface ProgressInfo {
   estimatedTimeRemaining?: number;
 }
 
+// 画像補正設定の型
+export interface ImageEnhancement {
+  contrast: number;    // コントラスト 0.5〜2.0（1.0がデフォルト）
+  brightness: number;  // 明るさ 0.5〜1.5（1.0がデフォルト）
+  sharpness: boolean;  // シャープ化（アンチエイリアス無効）
+}
+
 // 設定関連の型
 export interface AppSettings {
   rubyBracketMode: boolean; // true: 漢字（かんじ）, false: 漢字のみ
@@ -176,6 +183,8 @@ export interface AppSettings {
   defaultPaperSize: PaperSize;
   defaultPaperOrientation: PaperOrientation;
   writingDirection: 'vertical' | 'horizontal'; // 縦書き or 横書き
+  pdfRenderScale: number; // PDF読み込み時の解像度スケール（2〜4、デフォルト2）
+  imageEnhancement: ImageEnhancement; // 画像補正設定
 }
 
 // ストア関連の型

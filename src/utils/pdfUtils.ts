@@ -6,9 +6,56 @@
 // =============================================================================
 
 import * as pdfjsLib from 'pdfjs-dist';
+import type { ImageEnhancement } from '../types';
 
 // PDF.jsのワーカー設定（jsdelivrはCORS対応）
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+/**
+ * 画像補正を適用
+ * コントラスト・明るさ・シャープ化
+ */
+export function applyImageEnhancement(
+  canvas: HTMLCanvasElement,
+  enhancement: ImageEnhancement
+): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  // フィルターが必要ない場合はそのまま返す
+  if (enhancement.contrast === 1.0 && enhancement.brightness === 1.0 && !enhancement.sharpness) {
+    return canvas;
+  }
+
+  // 新しいキャンバスを作成
+  const enhancedCanvas = document.createElement('canvas');
+  enhancedCanvas.width = canvas.width;
+  enhancedCanvas.height = canvas.height;
+  const enhancedCtx = enhancedCanvas.getContext('2d');
+  if (!enhancedCtx) return canvas;
+
+  // シャープ化: imageSmoothingEnabledをOFFに
+  if (enhancement.sharpness) {
+    enhancedCtx.imageSmoothingEnabled = false;
+  }
+
+  // コントラスト・明るさフィルターを適用
+  const filters: string[] = [];
+  if (enhancement.contrast !== 1.0) {
+    filters.push(`contrast(${enhancement.contrast})`);
+  }
+  if (enhancement.brightness !== 1.0) {
+    filters.push(`brightness(${enhancement.brightness})`);
+  }
+  if (filters.length > 0) {
+    enhancedCtx.filter = filters.join(' ');
+  }
+
+  // 元の画像を描画
+  enhancedCtx.drawImage(canvas, 0, 0);
+
+  return enhancedCanvas;
+}
 
 export interface PDFData {
   pdf: pdfjsLib.PDFDocumentProxy;
@@ -76,11 +123,16 @@ export async function loadPDF(file: File): Promise<PDFData> {
 /**
  * PDFページを画像としてレンダリング
  * スキャンPDF・デジタルPDF両対応
+ * @param pdf PDFドキュメント
+ * @param pageNumber ページ番号
+ * @param scale 解像度スケール（2〜4、デフォルト2）
+ * @param enhancement 画像補正設定（オプション）
  */
 export async function renderPageToImage(
   pdf: pdfjsLib.PDFDocumentProxy,
   pageNumber: number,
-  scale: number = 2
+  scale: number = 2,
+  enhancement?: ImageEnhancement
 ): Promise<string> {
   const page = await pdf.getPage(pageNumber);
   const viewport = page.getViewport({ scale });
@@ -99,10 +151,16 @@ export async function renderPageToImage(
   await page.render({
     canvasContext: context,
     viewport,
-    intent: 'display',  // 表示用に最適化
+    intent: 'print',  // 印刷品質でレンダリング（文字がシャープに）
   }).promise;
 
-  return canvas.toDataURL('image/png');
+  // 画像補正を適用
+  let finalCanvas = canvas;
+  if (enhancement) {
+    finalCanvas = applyImageEnhancement(canvas, enhancement);
+  }
+
+  return finalCanvas.toDataURL('image/png');
 }
 
 /**

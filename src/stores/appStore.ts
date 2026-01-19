@@ -47,6 +47,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultPaperSize: 'A3',
   defaultPaperOrientation: 'landscape',
   writingDirection: 'vertical', // デフォルトは縦書き（A3横）
+  pdfRenderScale: 2, // PDF読み込み時の解像度スケール（デフォルト2倍）
+  imageEnhancement: {
+    contrast: 1.0,    // コントラスト（1.0がデフォルト）
+    brightness: 1.0,  // 明るさ（1.0がデフォルト）
+    sharpness: false, // シャープ化（デフォルトOFF）
+  },
 };
 
 interface Store extends AppState, AppActions {
@@ -126,7 +132,13 @@ export const useAppStore = create<Store>()(
               });
 
               const endRender = isBenchmarkMode ? startMeasure(`render-page-${pageNum}`) : null;
-              const imageData = await renderPageToImage(pdfData.pdf, pageNum);
+              const { settings } = get();
+              const imageData = await renderPageToImage(
+                pdfData.pdf,
+                pageNum,
+                settings.pdfRenderScale,
+                settings.imageEnhancement
+              );
               endRender?.({ page: pageNum });
 
               const endExtract = isBenchmarkMode ? startMeasure(`extract-text-${pageNum}`) : null;

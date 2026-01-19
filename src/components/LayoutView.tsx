@@ -394,7 +394,7 @@ export function LayoutView() {
 
     setIsExporting(true);
     try {
-      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality);
+      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality, settings.imageEnhancement);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -407,7 +407,7 @@ export function LayoutView() {
     } finally {
       setIsExporting(false);
     }
-  }, [layoutPages, snippets, pdfQuality]);
+  }, [layoutPages, snippets, pdfQuality, settings.imageEnhancement]);
 
   // 直接印刷
   const handlePrint = useCallback(async () => {
@@ -415,14 +415,14 @@ export function LayoutView() {
 
     setIsPrinting(true);
     try {
-      await printLayoutDirectly(layoutPages, snippets);
+      await printLayoutDirectly(layoutPages, snippets, settings.imageEnhancement);
     } catch (error) {
       console.error('印刷エラー:', error);
       alert('印刷の準備に失敗しました');
     } finally {
       setIsPrinting(false);
     }
-  }, [layoutPages, snippets]);
+  }, [layoutPages, snippets, settings.imageEnhancement]);
 
   return (
     <div className="h-full flex flex-col gap-2">
@@ -573,6 +573,76 @@ export function LayoutView() {
         >
           <Grid className="w-5 h-5" />
         </button>
+
+        <div className="w-px h-8 bg-gray-300" />
+
+        {/* 画像補正 */}
+        <div className="flex items-center gap-1 px-2 py-1 bg-yellow-50 rounded border border-yellow-300">
+          <span className="text-xs text-yellow-700 font-medium">補正</span>
+          <div className="flex items-center gap-0.5">
+            <span className="text-xs text-gray-500">濃</span>
+            <input
+              type="range"
+              min="0.5"
+              max="2.0"
+              step="0.1"
+              value={settings.imageEnhancement?.contrast ?? 1.0}
+              onChange={(e) => updateSettings({
+                imageEnhancement: {
+                  ...settings.imageEnhancement,
+                  contrast: parseFloat(e.target.value),
+                },
+              })}
+              className="w-12 h-4"
+              title={`コントラスト: ${settings.imageEnhancement?.contrast ?? 1.0}`}
+            />
+            <span className="text-xs w-6 text-center">{settings.imageEnhancement?.contrast?.toFixed(1) ?? '1.0'}</span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <span className="text-xs text-gray-500">明</span>
+            <input
+              type="range"
+              min="0.5"
+              max="1.5"
+              step="0.05"
+              value={settings.imageEnhancement?.brightness ?? 1.0}
+              onChange={(e) => updateSettings({
+                imageEnhancement: {
+                  ...settings.imageEnhancement,
+                  brightness: parseFloat(e.target.value),
+                },
+              })}
+              className="w-12 h-4"
+              title={`明るさ: ${settings.imageEnhancement?.brightness ?? 1.0}`}
+            />
+            <span className="text-xs w-6 text-center">{settings.imageEnhancement?.brightness?.toFixed(2) ?? '1.00'}</span>
+          </div>
+          <button
+            className={`px-1.5 py-0.5 text-xs rounded ${settings.imageEnhancement?.sharpness ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+            onClick={() => updateSettings({
+              imageEnhancement: {
+                ...settings.imageEnhancement,
+                sharpness: !settings.imageEnhancement?.sharpness,
+              },
+            })}
+            title="シャープ化"
+          >
+            鮮明
+          </button>
+          <button
+            className="px-1.5 py-0.5 text-xs bg-gray-300 rounded hover:bg-gray-400"
+            onClick={() => updateSettings({
+              imageEnhancement: {
+                contrast: 1.0,
+                brightness: 1.0,
+                sharpness: false,
+              },
+            })}
+            title="リセット"
+          >
+            ↺
+          </button>
+        </div>
 
         {/* PDF出力 & 印刷 */}
         <div className="flex items-center gap-1">

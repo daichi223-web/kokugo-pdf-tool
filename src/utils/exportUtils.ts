@@ -11,10 +11,11 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import type { LayoutPage, Snippet, TextElement } from '../types';
+import type { LayoutPage, Snippet, TextElement, ImageEnhancement } from '../types';
 import { getPaperDimensions } from '../types';
 import { applyRubyBrackets } from './ocrUtils';
 import { mmToPx } from './helpers';
+import { applyImageEnhancement } from './pdfUtils';
 
 /**
  * テキスト形式でエクスポート
@@ -277,10 +278,14 @@ export const PDF_QUALITY_PRESETS: Record<PdfQuality, PdfQualitySettings> = {
 /**
  * 画像をリサイズ・圧縮する
  * 最高画質モードでは元画像の解像度を維持しつつ、高品質な補間で拡大
+ * @param imageData 元の画像データ（Base64）
+ * @param settings 品質設定
+ * @param enhancement 画像補正設定（オプション）
  */
 async function processImageForPdf(
   imageData: string,
-  settings: PdfQualitySettings
+  settings: PdfQualitySettings,
+  enhancement?: ImageEnhancement
 ): Promise<{ data: ArrayBuffer; isPng: boolean; originalWidth: number; originalHeight: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -296,9 +301,14 @@ async function processImageForPdf(
       canvas.width = Math.round(img.width * settings.scale);
       canvas.height = Math.round(img.height * settings.scale);
 
-      // 高品質な補間を有効化
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      // シャープ化が有効な場合はスムージングをOFF
+      if (enhancement?.sharpness) {
+        ctx.imageSmoothingEnabled = false;
+      } else {
+        // 高品質な補間を有効化
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
 
       // 白背景（JPEG用）
       if (settings.format === 'jpeg') {
@@ -308,9 +318,15 @@ async function processImageForPdf(
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+      // 画像補正を適用
+      let finalCanvas = canvas;
+      if (enhancement && (enhancement.contrast !== 1.0 || enhancement.brightness !== 1.0)) {
+        finalCanvas = applyImageEnhancement(canvas, enhancement);
+      }
+
       // 出力形式を選択
       const mimeType = settings.format === 'png' ? 'image/png' : 'image/jpeg';
-      const dataUrl = canvas.toDataURL(mimeType, settings.quality);
+      const dataUrl = finalCanvas.toDataURL(mimeType, settings.quality);
 
       fetch(dataUrl)
         .then(res => res.arrayBuffer())
@@ -330,11 +346,16 @@ async function processImageForPdf(
 /**
  * レイアウトをPDFとしてエクスポート
  * P3-006: 印刷用PDF出力
+ * @param layoutPages レイアウトページ配列
+ * @param snippets スニペット配列
+ * @param quality 出力品質
+ * @param enhancement 画像補正設定（オプション）
  */
 export async function exportLayoutToPDF(
   layoutPages: LayoutPage[],
   snippets: Snippet[],
-  quality: PdfQuality = 'high'
+  quality: PdfQuality = 'high',
+  enhancement?: ImageEnhancement
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
   const qualitySettings = PDF_QUALITY_PRESETS[quality];
@@ -361,7 +382,7 @@ export async function exportLayoutToPDF(
 
       try {
         // 画像を処理（圧縮・リサイズ）してPDFに埋め込み
-        const processed = await processImageForPdf(snippet.imageData, qualitySettings);
+        const processed = await processImageForPdf(snippet.imageData, qualitySettings, enhancement);
         const image = processed.isPng
           ? await pdfDoc.embedPng(processed.data)
           : await pdfDoc.embedJpg(processed.data);
@@ -520,10 +541,14 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
 /**
  * 直接印刷機能
  * PDFを生成せずにブラウザの印刷ダイアログを開く
+ * @param layoutPages レイアウトページ配列
+ * @param snippets スニペット配列
+ * @param enhancement 画像補正設定（オプション）
  */
 export async function printLayoutDirectly(
   layoutPages: LayoutPage[],
-  snippets: Snippet[]
+  snippets: Snippet[],
+  enhancement?: ImageEnhancement
 ): Promise<void> {
   // 印刷用コンテナを作成
   const printContainer = document.createElement('div');
@@ -563,6 +588,17 @@ export async function printLayoutDirectly(
     const marginX = mmToPx(layoutPage.marginX ?? layoutPage.margin ?? 15, screenDpi);
     const marginY = mmToPx(layoutPage.marginY ?? layoutPage.margin ?? 15, screenDpi);
 
+    // 画像補正フィルターを構築
+    const filters: string[] = [];
+    if (enhancement?.contrast && enhancement.contrast !== 1.0) {
+      filters.push(`contrast(${enhancement.contrast})`);
+    }
+    if (enhancement?.brightness && enhancement.brightness !== 1.0) {
+      filters.push(`brightness(${enhancement.brightness})`);
+    }
+    const filterStyle = filters.length > 0 ? `filter: ${filters.join(' ')};` : '';
+    const imageRenderingStyle = enhancement?.sharpness ? 'image-rendering: crisp-edges;' : '';
+
     // スニペットを配置
     for (const placedSnippet of layoutPage.snippets) {
       const snippet = snippets.find((s) => s.id === placedSnippet.snippetId);
@@ -576,6 +612,8 @@ export async function printLayoutDirectly(
         top: ${marginY + placedSnippet.position.y}px;
         width: ${placedSnippet.size.width}px;
         height: ${placedSnippet.size.height}px;
+        ${filterStyle}
+        ${imageRenderingStyle}
       `;
       pageDiv.appendChild(img);
     }
