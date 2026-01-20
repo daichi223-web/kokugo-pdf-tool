@@ -13,6 +13,7 @@ const GRID_PATTERNS: Record<string, { cols: number; rows: number; label: string 
   '4x3': { cols: 4, rows: 3, label: '4×3' },
   '3x2': { cols: 3, rows: 2, label: '3×2' },
   '2x2': { cols: 2, rows: 2, label: '2×2' },
+  '1x1': { cols: 1, rows: 1, label: '1×1' },
 };
 
 export function SnippetList() {
@@ -34,7 +35,7 @@ export function SnippetList() {
     clearAllPlacements,
   } = useAppStore();
 
-  const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2'>('4x2');
+  const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | '1x1'>('4x2');
 
   // スニペットを選択した時にソースファイル・ページもアクティブに設定
   const handleSnippetClick = (snippet: typeof snippets[0]) => {
@@ -100,7 +101,7 @@ export function SnippetList() {
               className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50"
               onClick={handleAutoArrange}
               disabled={!activeLayoutPageId}
-              title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で自動配置`}
+              title={`${settings.writingDirection === 'vertical' ? '右上' : '左上'}基準で自動配置（${settings.writingDirection === 'vertical' ? '縦書き' : '横書き'}）`}
             >
               <Grid className="w-3 h-3" />
               配置

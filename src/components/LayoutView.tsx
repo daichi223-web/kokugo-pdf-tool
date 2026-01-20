@@ -645,37 +645,9 @@ export function LayoutView() {
       {/* ===== ツールバー下段: 配置モード用ツール ===== */}
       {mode === 'layout' && (
         <div className="bg-white rounded-lg shadow px-2 md:px-4 py-2 flex items-center gap-2 md:gap-3 flex-wrap text-xs md:text-sm">
-          {/* ★ 基準・余白・間隔グループ（関連機能をまとめる） */}
+          {/* ★ 余白・間隔グループ */}
           {activeLayout && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg border-2 border-indigo-300">
-              {/* 基準点 */}
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-indigo-700 font-bold">基準:</span>
-                <div className="flex bg-indigo-200 rounded p-0.5">
-                  <button
-                    className={`px-2 py-0.5 text-xs font-medium rounded ${settings.layoutAnchor === 'right-top' ? 'bg-indigo-500 text-white' : 'text-indigo-700 hover:bg-indigo-300'}`}
-                    onClick={() => updateSettings({ layoutAnchor: 'right-top' })}
-                    title="右上固定"
-                  >
-                    右上
-                  </button>
-                  <button
-                    className={`px-2 py-0.5 text-xs font-medium rounded ${settings.layoutAnchor === 'center' ? 'bg-indigo-500 text-white' : 'text-indigo-700 hover:bg-indigo-300'}`}
-                    onClick={() => updateSettings({ layoutAnchor: 'center' })}
-                    title="中央固定"
-                  >
-                    中央
-                  </button>
-                  <button
-                    className={`px-2 py-0.5 text-xs font-medium rounded ${settings.layoutAnchor === 'left-top' ? 'bg-indigo-500 text-white' : 'text-indigo-700 hover:bg-indigo-300'}`}
-                    onClick={() => updateSettings({ layoutAnchor: 'left-top' })}
-                    title="左上固定"
-                  >
-                    左上
-                  </button>
-                </div>
-              </div>
-              <span className="text-indigo-300">|</span>
               {/* 余白 */}
               <div className="flex items-center gap-1">
                 <span className="text-xs text-indigo-600">余白:</span>
@@ -753,7 +725,7 @@ export function LayoutView() {
                     repackAllSnippets(activeLayout.id);
                   }
                 }}
-                title={`${settings.layoutAnchor === 'right-top' ? '右上' : settings.layoutAnchor === 'center' ? '中央' : '左上'}基準で詰める`}
+                title={`${settings.writingDirection === 'vertical' ? '右上' : '左上'}基準で詰める（${settings.writingDirection === 'vertical' ? '縦書き' : '横書き'}）`}
               >
                 実行
               </button>

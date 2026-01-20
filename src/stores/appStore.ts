@@ -1212,29 +1212,19 @@ export const useAppStore = create<Store>()(
             positionInPage = 0;
           }
 
-          // 基準点に応じて列位置を計算
+          // 縦書き/横書きに応じて列位置を計算
           let col: number;
-          if (settings.layoutAnchor === 'left-top') {
-            // 左上基準: 左から右へ
-            col = positionInPage % cols;
-          } else if (settings.layoutAnchor === 'center') {
-            // 中央基準: 左から右へ（後で中央寄せ）
+          if (settings.writingDirection === 'horizontal') {
+            // 横書き: 左から右へ
             col = positionInPage % cols;
           } else {
-            // 右上基準: 右から左へ
+            // 縦書き: 右から左へ
             col = cols - 1 - (positionInPage % cols);
           }
           const row = Math.floor(positionInPage / cols);
 
-          // X座標を計算（中央基準の場合は後で調整）
-          let x = col * (cellWidth + gapX);
-
-          // 中央基準の場合、行全体を中央寄せ
-          if (settings.layoutAnchor === 'center') {
-            const rowWidth = cols * cellWidth + (cols - 1) * gapX;
-            const offsetX = (availableWidth - rowWidth) / 2;
-            x += offsetX;
-          }
+          // X座標を計算
+          const x = col * (cellWidth + gapX);
 
           pagesData[currentPageIndex].push({
             snippetId: snippet.id,
@@ -1616,8 +1606,8 @@ export const useAppStore = create<Store>()(
           return pageA - pageB; // 元PDFのページ番号順
         });
 
-        // 基準点
-        const anchor = settings.layoutAnchor;
+        // 縦書き/横書きで方向を決定
+        const isVertical = settings.writingDirection === 'vertical';
 
         // まず行ごとにグループ化
         type RowData = { snippets: typeof snippetsToPlace; y: number; height: number };
@@ -1661,20 +1651,18 @@ export const useAppStore = create<Store>()(
         const positionMap = new Map<string, { x: number; y: number }>();
 
         rows.forEach((row) => {
-          const rowWidth = row.snippets.reduce((sum, s) => sum + s.size.width, 0);
-
           let currentX: number;
-          if (anchor === 'right-top') {
+          if (isVertical) {
+            // 縦書き: 右から左へ
             currentX = availableWidth;
-          } else if (anchor === 'center') {
-            currentX = (availableWidth - rowWidth) / 2;
           } else {
+            // 横書き: 左から右へ
             currentX = 0;
           }
 
           row.snippets.forEach((snippet) => {
             let x: number;
-            if (anchor === 'right-top') {
+            if (isVertical) {
               currentX -= snippet.size.width;
               x = currentX;
             } else {
@@ -1747,8 +1735,8 @@ export const useAppStore = create<Store>()(
         const availableWidth = paperWidthPx - marginXPx * 2;
         const availableHeight = paperHeightPx - marginYPx * 2;
 
-        // 基準点を取得
-        const anchor = settings.layoutAnchor;
+        // 縦書き/横書きで方向を決定
+        const isVertical = settings.writingDirection === 'vertical';
 
         // まず行ごとにスニペットをグループ化（位置計算用）
         type RowData = { snippets: { snippetId: string; size: Size; rotation: number }[]; y: number; height: number };
@@ -1820,23 +1808,18 @@ export const useAppStore = create<Store>()(
           const pageSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
 
           rows.forEach((row) => {
-            const rowWidth = row.snippets.reduce((sum, s) => sum + s.size.width, 0);
-
             let currentX: number;
-            if (anchor === 'right-top') {
-              // 右上基準: 右端から左へ
+            if (isVertical) {
+              // 縦書き: 右から左へ
               currentX = availableWidth;
-            } else if (anchor === 'center') {
-              // 中央基準: 中央から配置
-              currentX = (availableWidth - rowWidth) / 2;
             } else {
-              // 左上基準: 左端から右へ
+              // 横書き: 左から右へ
               currentX = 0;
             }
 
             row.snippets.forEach((snippet) => {
               let x: number;
-              if (anchor === 'right-top') {
+              if (isVertical) {
                 currentX -= snippet.size.width;
                 x = currentX;
               } else {
