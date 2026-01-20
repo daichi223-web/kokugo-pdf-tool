@@ -1606,58 +1606,56 @@ export const useAppStore = create<Store>()(
         // 縦書き/横書きで方向を決定
         const isVertical = settings.writingDirection === 'vertical';
 
-        // 最大スニペット高さを基準（1スロットの高さ）
-        const maxSnippetHeight = Math.max(...snippetsToPlace.map((s) => s.size.height));
+        // 現在の配置から行数を推定
+        // Y座標をスニペット高さで割って行数を推定
+        const avgHeight = snippetsToPlace.reduce((sum, s) => sum + s.size.height, 0) / snippetsToPlace.length;
+        const yPositions = snippetsToPlace.map(s => s.position.y);
+        const maxY = Math.max(...yPositions);
+        const estimatedRows = Math.max(2, Math.round((maxY + avgHeight) / avgHeight));
 
-        // シンプルなアルゴリズム:
+        // 行高さ = ページ高さ / 行数（グリッドの行スロット高さ）
+        const rowHeight = availableHeight / estimatedRows;
+
+        // 列幅を推定（最大スニペット幅、または現在のX位置から）
+        const maxSnippetWidth = Math.max(...snippetsToPlace.map((s) => s.size.width));
+
+        // アルゴリズム:
         // 1. 各スニペットを順番に配置
-        // 2. 前のスニペットと合わせて最大高さ以内なら縦に積む
-        // 3. そうでなければ次の列へ
+        // 2. 同じ行スロット内（rowHeight以内）に収まるなら縦に積む
+        // 3. 行スロットを超えたら次の行スロットへ
+        // 4. 列が一杯になったら次の列へ
         // ※サイズは一切変更しない、位置のみ変更
 
         // 現在の列の状態
-        let columnX = isVertical ? availableWidth : 0; // 縦書きは右端から、横書きは左端から
+        let columnX = isVertical ? availableWidth - maxSnippetWidth : 0;
         let columnY = 0;
-        let columnWidth = 0;
-        let slotStartY = 0; // 現在のスロットの開始Y座標
+        let columnWidth = maxSnippetWidth;
+        let slotStartY = 0; // 現在の行スロットの開始Y座標
 
         // 配置位置を計算（サイズは変更しない）
         const positionMap = new Map<string, { x: number; y: number }>();
 
-        snippetsToPlace.forEach((snippet, index) => {
+        snippetsToPlace.forEach((snippet) => {
           const width = snippet.size.width;
           const height = snippet.size.height;
 
-          // 最初のスニペット
-          if (index === 0) {
-            if (isVertical) {
-              columnX = availableWidth - width;
-            } else {
-              columnX = 0;
-            }
-            columnY = 0;
-            columnWidth = width;
-            slotStartY = 0;
-            positionMap.set(snippet.snippetId, { x: columnX, y: columnY });
-            columnY += height;
-            return;
-          }
-
-          // 現在のスロット内に収まるか？（前のスニペットと合わせて最大高さ以内）
+          // 現在の行スロット内に収まるか？
           const slotUsedHeight = columnY - slotStartY;
-          const canStackInSlot = slotUsedHeight + height <= maxSnippetHeight;
+          const canStackInSlot = slotUsedHeight + height <= rowHeight;
 
           // 列内に収まるか？
           const canFitInColumn = columnY + height <= availableHeight;
 
           if (canStackInSlot && canFitInColumn) {
-            // 同じスロット内に縦に積む
+            // 同じ行スロット内に縦に積む（短いスニペット）
             positionMap.set(snippet.snippetId, { x: columnX, y: columnY });
             columnY += height;
             if (width > columnWidth) columnWidth = width;
           } else if (canFitInColumn) {
-            // 新しいスロットを開始（同じ列内）
-            slotStartY = columnY;
+            // 新しい行スロットを開始（同じ列内の次の行）
+            // 行スロットの境界に揃える
+            slotStartY = Math.ceil(columnY / rowHeight) * rowHeight;
+            columnY = slotStartY;
             positionMap.set(snippet.snippetId, { x: columnX, y: columnY });
             columnY += height;
             if (width > columnWidth) columnWidth = width;
@@ -1667,17 +1665,13 @@ export const useAppStore = create<Store>()(
               // 縦書き: 左へ移動
               columnX = columnX - columnWidth;
               if (columnX < 0) {
-                // 配置できない（ページ外）
-                return;
+                return; // 配置できない（ページ外）
               }
-              columnX = columnX - width + columnWidth; // 新しい列の右端に合わせる
-              if (columnX < 0) columnX = 0;
             } else {
               // 横書き: 右へ移動
               columnX = columnX + columnWidth;
               if (columnX + width > availableWidth) {
-                // 配置できない（ページ外）
-                return;
+                return; // 配置できない（ページ外）
               }
             }
             columnY = 0;
