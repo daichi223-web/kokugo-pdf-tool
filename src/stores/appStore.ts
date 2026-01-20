@@ -1609,19 +1609,19 @@ export const useAppStore = create<Store>()(
         // 縦書き/横書きで方向を決定
         const isVertical = settings.writingDirection === 'vertical';
 
-        // グリッド構造を推定（現在の配置から列数・行数を推定）
-        // X座標のユニーク値から列数を推定
-        const xPositions = [...new Set(snippetsToPlace.map(s => Math.round(s.position.x / 10) * 10))];
-        const estimatedCols = Math.max(1, xPositions.length);
-        // スニペット数と列数から行数を推定
-        const estimatedRows = Math.max(2, Math.ceil(snippetsToPlace.length / estimatedCols));
+        // グリッド構造を推定
+        // 列数 = 用紙幅 ÷ 最大スニペット幅（切り捨て）
+        const maxSnippetWidth = Math.max(...snippetsToPlace.map((s) => s.size.width));
+        const cols = Math.max(1, Math.floor(availableWidth / maxSnippetWidth));
+        // 行数 = 固定で2（ほとんどのグリッドパターンは2行: 4x2, 3x2, 2x2）
+        const rows = 2;
 
         // セルサイズ（グリッドの1マス）
-        const cellWidth = availableWidth / estimatedCols;
-        const cellHeight = availableHeight / estimatedRows;
+        const cellWidth = availableWidth / cols;
+        const cellHeight = availableHeight / rows;
 
         // Bin-Packing状態
-        let currentCol = isVertical ? estimatedCols - 1 : 0; // 縦書きは右から、横書きは左から
+        let currentCol = isVertical ? cols - 1 : 0; // 縦書きは右端(cols-1)から、横書きは左端(0)から
         let currentRow = 0;
         let currentY = 0; // セル内のY位置
 
@@ -1638,12 +1638,12 @@ export const useAppStore = create<Store>()(
             if (isVertical) {
               currentCol--;
               if (currentCol < 0) {
-                currentCol = estimatedCols - 1;
+                currentCol = cols - 1;
                 currentRow++;
               }
             } else {
               currentCol++;
-              if (currentCol >= estimatedCols) {
+              if (currentCol >= cols) {
                 currentCol = 0;
                 currentRow++;
               }
@@ -1652,7 +1652,7 @@ export const useAppStore = create<Store>()(
           }
 
           // ページ外チェック（行数オーバー）
-          if (currentRow >= estimatedRows) {
+          if (currentRow >= rows) {
             return; // 配置できない
           }
 
@@ -1670,12 +1670,12 @@ export const useAppStore = create<Store>()(
             if (isVertical) {
               currentCol--;
               if (currentCol < 0) {
-                currentCol = estimatedCols - 1;
+                currentCol = cols - 1;
                 currentRow++;
               }
             } else {
               currentCol++;
-              if (currentCol >= estimatedCols) {
+              if (currentCol >= cols) {
                 currentCol = 0;
                 currentRow++;
               }
