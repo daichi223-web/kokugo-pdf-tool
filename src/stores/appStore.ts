@@ -1163,9 +1163,29 @@ export const useAppStore = create<Store>()(
         const availableWidth = pageWidth - marginX * 2;
         const availableHeight = pageHeight - marginY * 2;
 
-        // グリッドのセルサイズ（位置計算用）
-        const cellWidth = availableWidth / cols;
-        const cellHeight = availableHeight / rows;
+        // 最大セルサイズ（グリッドの1マス分）
+        const maxCellWidth = availableWidth / cols;
+        const maxCellHeight = availableHeight / rows;
+
+        // 最初のスニペットのアスペクト比を取得（トリミング時のズームを考慮）
+        const firstSnippet = snippets[0];
+        const firstCropZoom = firstSnippet?.cropZoom || 1;
+        const originalWidth = (firstSnippet?.cropArea.width || 100) * firstCropZoom;
+        const originalHeight = (firstSnippet?.cropArea.height || 100) * firstCropZoom;
+        const aspectRatio = originalWidth / originalHeight;
+
+        // 縦書き/横書きに応じてサイズを計算
+        let cellWidth: number;
+        let cellHeight: number;
+        if (settings.writingDirection === 'vertical') {
+          // 縦書き: 高さを基準にいっぱいに配置
+          cellHeight = maxCellHeight;
+          cellWidth = cellHeight * aspectRatio;
+        } else {
+          // 横書き: 幅を基準にいっぱいに配置
+          cellWidth = maxCellWidth;
+          cellHeight = cellWidth / aspectRatio;
+        }
 
         // 1ページあたりの容量
         const capacity = cols * rows;
@@ -1201,23 +1221,18 @@ export const useAppStore = create<Store>()(
           }
           const row = Math.floor(positionInPage / cols);
 
-          // 各スニペットの元サイズを取得（トリミング時のズームを考慮）
-          const cropZoom = snippet.cropZoom || 1;
-          const snippetWidth = snippet.cropArea.width * cropZoom;
-          const snippetHeight = snippet.cropArea.height * cropZoom;
-
           // X座標を計算
-          const x = col * cellWidth;
+          const x = col * maxCellWidth;
 
           pagesData[currentPageIndex].push({
             snippetId: snippet.id,
             position: {
               x,
-              y: row * cellHeight,
+              y: row * maxCellHeight,
             },
             size: {
-              width: snippetWidth,   // 元サイズを維持
-              height: snippetHeight, // 元サイズを維持
+              width: cellWidth,   // グリッドセルに合わせたサイズ
+              height: cellHeight, // グリッドセルに合わせたサイズ
             },
             rotation: 0,
           });
