@@ -3,7 +3,7 @@
 // P3-001: トリミング機能 - スニペット管理
 // =============================================================================
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Trash2, Move, Crop, CornerDownLeft, Grid, XCircle, GripVertical } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
@@ -39,6 +39,16 @@ export function SnippetList() {
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | '1x1'>('4x2');
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const draggedIndexRef = useRef<number | null>(null);
+
+  // アクティブページの向きに応じてデフォルトのグリッドパターンを変更
+  const activeLayoutPage = layoutPages.find(p => p.id === activeLayoutPageId);
+  useEffect(() => {
+    if (activeLayoutPage) {
+      // 横向き（landscape）→ 4×2、縦向き（portrait）→ 2×2
+      const defaultPattern = activeLayoutPage.orientation === 'landscape' ? '4x2' : '2x2';
+      setGridPattern(defaultPattern);
+    }
+  }, [activeLayoutPageId, activeLayoutPage?.orientation]);
 
   // スニペットを選択した時にソースファイル・ページもアクティブに設定
   const handleSnippetClick = (snippet: typeof snippets[0]) => {
