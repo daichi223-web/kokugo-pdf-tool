@@ -1646,21 +1646,18 @@ export const useAppStore = create<Store>()(
         // 縦書き/横書きで方向を決定
         const isVertical = settings.writingDirection === 'vertical';
 
-        // グリッド構造を推定
-        // 列数 = 用紙幅 ÷ 最大スニペット幅（切り捨て）
+        // 列数を推定（最大スニペット幅から）
         const maxSnippetWidth = Math.max(...snippetsToPlace.map((s) => s.size.width));
         const cols = Math.max(1, Math.floor(availableWidth / maxSnippetWidth));
-        // 行数 = 固定で2（ほとんどのグリッドパターンは2行: 4x2, 3x2, 2x2）
-        const rows = 2;
 
-        // セルサイズ（グリッドの1マス）
+        // 列幅
         const cellWidth = availableWidth / cols;
-        const cellHeight = availableHeight / rows;
 
-        // Bin-Packing状態
-        let currentCol = isVertical ? cols - 1 : 0; // 縦書きは右端(cols-1)から、横書きは左端(0)から
-        let currentRow = 0;
-        let currentY = 0; // セル内のY位置
+        // 各列の現在のY位置を追跡（実際の使用高さ）
+        const columnHeights: number[] = new Array(cols).fill(0);
+
+        // 現在の列
+        let currentCol = isVertical ? cols - 1 : 0;
 
         // 配置位置を計算（サイズは変更しない）
         const positionMap = new Map<string, { x: number; y: number }>();
@@ -1668,57 +1665,34 @@ export const useAppStore = create<Store>()(
         snippetsToPlace.forEach((snippet) => {
           const height = snippet.size.height;
 
-          // Condition B: Overflow - セルに収まらない場合、次のセルへ
-          const remainingHeight = cellHeight - currentY;
-          if (height > remainingHeight && currentY > 0) {
-            // 次のセルへ移動
+          // 現在の列に収まるかチェック
+          const remainingHeight = availableHeight - columnHeights[currentCol];
+
+          if (height > remainingHeight && columnHeights[currentCol] > 0) {
+            // 収まらない場合、次の列へ移動
             if (isVertical) {
               currentCol--;
               if (currentCol < 0) {
-                currentCol = cols - 1;
-                currentRow++;
+                // 全列が埋まった - 配置できない
+                return;
               }
             } else {
               currentCol++;
               if (currentCol >= cols) {
-                currentCol = 0;
-                currentRow++;
+                // 全列が埋まった - 配置できない
+                return;
               }
             }
-            currentY = 0;
           }
 
-          // ページ外チェック（行数オーバー）
-          if (currentRow >= rows) {
-            return; // 配置できない
-          }
-
-          // 配置位置を計算
+          // 配置位置を計算（直接前のスニペットの下に配置）
           const x = currentCol * cellWidth;
-          const y = currentRow * cellHeight + currentY;
+          const y = columnHeights[currentCol];
 
           positionMap.set(snippet.snippetId, { x, y });
 
-          // Condition A: Fits - 配置後、currentYを更新（縦に積む）
-          currentY += height;
-
-          // セルが満杯になったら次のセルへ
-          if (currentY >= cellHeight) {
-            if (isVertical) {
-              currentCol--;
-              if (currentCol < 0) {
-                currentCol = cols - 1;
-                currentRow++;
-              }
-            } else {
-              currentCol++;
-              if (currentCol >= cols) {
-                currentCol = 0;
-                currentRow++;
-              }
-            }
-            currentY = 0;
-          }
+          // 列の使用高さを更新
+          columnHeights[currentCol] += height;
         });
 
         // 位置のみ更新（サイズは絶対に変更しない）
