@@ -1158,6 +1158,15 @@ export const useAppStore = create<Store>()(
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || snippets.length === 0) return;
 
+        // デバッグ: スニペット数を表示
+        console.log('[arrangeAllSnippetsInGrid] 開始', {
+          snippetsCount: snippets.length,
+          snippetIds: snippets.map(s => s.id),
+          pageId,
+          cols,
+          rows,
+        });
+
         // Undo用に履歴を保存
         get().pushLayoutHistory();
 
@@ -1298,6 +1307,12 @@ export const useAppStore = create<Store>()(
         });
 
         // ストアを更新
+        // デバッグ: 配置結果を表示
+        console.log('[arrangeAllSnippetsInGrid] 配置結果', {
+          pagesDataLength: pagesData.length,
+          snippetsPerPage: pagesData.map((p, i) => ({ page: i, count: p.length, ids: p.map(s => s.snippetId) })),
+        });
+
         set((state) => {
           // 既存ページを更新し、新しいページを挿入
           const updatedPages = state.layoutPages.map((p) =>
