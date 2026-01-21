@@ -986,9 +986,10 @@ export function LayoutView() {
                       // 全詰め → 間隔調整を実行（サイズ統一は行わない）
                       const targetPageId = sourceLayoutPageId || activeLayoutPageId;
                       setTimeout(() => {
-                        handleAutoRepack();
-                        // 全詰め後にUIで設定した間隔で詰め直す（マイナス値で重ねて余白を相殺）
+                        // targetPageIdを直接使用（handleAutoRepackのクロージャ問題を回避）
                         if (autoRepack && targetPageId) {
+                          repackAllSnippets(targetPageId);
+                          // 全詰め後にUIで設定した間隔で詰め直す（マイナス値で重ねて余白を相殺）
                           setTimeout(() => {
                             adjustPageSnippetsGap(targetPageId, pageGapX, pageGapY);
                           }, 50);
