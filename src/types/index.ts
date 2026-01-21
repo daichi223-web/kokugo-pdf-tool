@@ -245,6 +245,7 @@ export interface AppActions {
   addSnippet: (snippet: Omit<Snippet, 'id' | 'createdAt'>) => void;
   updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => void;
   removeSnippet: (snippetId: string) => void;
+  reorderSnippets: (fromIndex: number, toIndex: number) => void;
   toggleSnippetPageBreak: (snippetId: string) => void;
 
   // レイアウト操作

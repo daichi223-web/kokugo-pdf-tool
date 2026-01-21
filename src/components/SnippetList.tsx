@@ -3,8 +3,8 @@
 // P3-001: トリミング機能 - スニペット管理
 // =============================================================================
 
-import { useState } from 'react';
-import { Trash2, Move, Crop, CornerDownLeft, Grid, XCircle } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Trash2, Move, Crop, CornerDownLeft, Grid, XCircle, GripVertical } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
 // グリッドパターン定義
@@ -33,9 +33,12 @@ export function SnippetList() {
     layoutPages,
     settings,
     clearAllPlacements,
+    reorderSnippets,
   } = useAppStore();
 
   const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | '1x1'>('4x2');
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const draggedIndexRef = useRef<number | null>(null);
 
   // スニペットを選択した時にソースファイル・ページもアクティブに設定
   const handleSnippetClick = (snippet: typeof snippets[0]) => {
@@ -48,9 +51,50 @@ export function SnippetList() {
     setActivePage(snippet.sourcePageNumber);
   };
 
-  const handleDragStart = (e: React.DragEvent, snippetId: string) => {
+  // ドラッグ開始（レイアウトキャンバスへのドラッグ＆リスト内並べ替え両用）
+  const handleDragStart = (e: React.DragEvent, snippetId: string, index: number) => {
     e.dataTransfer.setData('snippetId', snippetId);
+    e.dataTransfer.setData('snippetIndex', index.toString());
     e.dataTransfer.effectAllowed = 'move';
+    draggedIndexRef.current = index;
+  };
+
+  // ドラッグ終了
+  const handleDragEnd = () => {
+    draggedIndexRef.current = null;
+    setDragOverIndex(null);
+  };
+
+  // リスト内でのドラッグオーバー
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    // 自分自身の位置には表示しない
+    if (draggedIndexRef.current !== null && draggedIndexRef.current !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  // リスト内でのドロップ
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const fromIndex = draggedIndexRef.current;
+
+    if (fromIndex !== null && fromIndex !== targetIndex) {
+      reorderSnippets(fromIndex, targetIndex);
+    }
+
+    draggedIndexRef.current = null;
+    setDragOverIndex(null);
+  };
+
+  // リストエリアから離れた時
+  const handleDragLeave = (e: React.DragEvent) => {
+    // 子要素への移動ではリセットしない
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverIndex(null);
+    }
   };
 
   const handleAddToLayout = (snippetId: string) => {
@@ -126,19 +170,28 @@ export function SnippetList() {
             トリミングツールで<br />範囲を選択してください
           </p>
         ) : (
-          <div className="space-y-2">
-            {snippets.map((snippet) => (
+          <div className="space-y-2" onDragLeave={handleDragLeave}>
+            {snippets.map((snippet, index) => (
               <div
                 key={snippet.id}
                 className={`relative rounded border-2 cursor-move transition-colors ${
                   selectedSnippetId === snippet.id
                     ? 'border-blue-500'
+                    : dragOverIndex === index
+                    ? 'border-green-500 border-dashed'
                     : 'border-transparent hover:border-blue-300'
                 }`}
                 onClick={() => handleSnippetClick(snippet)}
                 draggable
-                onDragStart={(e) => handleDragStart(e, snippet.id)}
+                onDragStart={(e) => handleDragStart(e, snippet.id, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
               >
+                {/* ドラッグハンドル */}
+                <div className="absolute top-1 left-1 z-10 p-0.5 bg-white bg-opacity-80 rounded cursor-grab active:cursor-grabbing">
+                  <GripVertical className="w-3 h-3 text-gray-400" />
+                </div>
                 <img
                   src={snippet.imageData}
                   alt={`Snippet ${snippet.id}`}

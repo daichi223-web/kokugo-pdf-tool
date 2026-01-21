@@ -512,6 +512,16 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // スニペットの順序を入れ替え
+      reorderSnippets: (fromIndex: number, toIndex: number) => {
+        set((state) => {
+          const newSnippets = [...state.snippets];
+          const [removed] = newSnippets.splice(fromIndex, 1);
+          newSnippets.splice(toIndex, 0, removed);
+          return { snippets: newSnippets };
+        });
+      },
+
       // スニペットの改ページフラグをトグル
       toggleSnippetPageBreak: (snippetId: string) => {
         set((state) => ({
