@@ -325,25 +325,6 @@ export function LayoutView() {
     }
   }, [activeFile, selectedPageNumbers, addSnippet, cropZoom]); // 修正: 依存配列にcropZoomを追加
 
-  // トリミング完了時の自動サイズ揃え処理
-  const handleAutoUnifySize = useCallback(() => {
-    if (!activeLayoutPageId) return;
-
-    const activeLayout = layoutPages.find(p => p.id === activeLayoutPageId);
-    if (!activeLayout || activeLayout.snippets.length < 2) return;
-
-    // 最初のスニペットを基準にする
-    const firstSnippet = activeLayout.snippets[0];
-
-    if (settings.writingDirection === 'vertical') {
-      // 縦書き → 高さを揃える
-      applySnippetHeightToLayout(activeLayoutPageId, firstSnippet.size.height);
-    } else {
-      // 横書き → 幅を揃える
-      applySnippetWidthToLayout(activeLayoutPageId, firstSnippet.size.width);
-    }
-  }, [activeLayoutPageId, layoutPages, settings.writingDirection, applySnippetHeightToLayout, applySnippetWidthToLayout]);
-
   // 自動全詰め処理（トリミング後に実行）
   const handleAutoRepack = useCallback(() => {
     if (!autoRepack || !activeLayoutPageId) return;
@@ -1002,26 +983,22 @@ export function LayoutView() {
                         setActiveLayoutPage(sourceLayoutPageId);
                         reCropSourceLayoutPageIdRef.current = null;
                       }
-                      // 自動サイズ揃え → 全詰め → 間隔調整を順番に実行
+                      // 全詰め → 間隔調整を実行（サイズ統一は行わない）
                       const targetPageId = sourceLayoutPageId || activeLayoutPageId;
                       setTimeout(() => {
-                        handleAutoUnifySize();
-                        // サイズ更新後に全詰め
-                        setTimeout(() => {
-                          handleAutoRepack();
-                          // 全詰め後にUIで設定した間隔で詰め直す（マイナス値で重ねて余白を相殺）
-                          if (autoRepack && targetPageId) {
-                            setTimeout(() => {
-                              adjustPageSnippetsGap(targetPageId, pageGapX, pageGapY);
-                            }, 50);
-                          }
-                          // スクロール位置を復元
+                        handleAutoRepack();
+                        // 全詰め後にUIで設定した間隔で詰め直す（マイナス値で重ねて余白を相殺）
+                        if (autoRepack && targetPageId) {
                           setTimeout(() => {
-                            if (layoutContainerRef.current) {
-                              layoutContainerRef.current.scrollTop = sourceScrollTop;
-                            }
-                          }, 100);
-                        }, 50);
+                            adjustPageSnippetsGap(targetPageId, pageGapX, pageGapY);
+                          }, 50);
+                        }
+                        // スクロール位置を復元
+                        setTimeout(() => {
+                          if (layoutContainerRef.current) {
+                            layoutContainerRef.current.scrollTop = sourceScrollTop;
+                          }
+                        }, 100);
                       }, 100);
                     }}
                     updateSnippetId={reCropSnippetId}
@@ -1060,9 +1037,8 @@ export function LayoutView() {
                   batchMode={selectedPageNumbers.length > 1}
                   onBatchCrop={handleBatchCrop}
                   onCropComplete={() => {
-                    // 自動サイズ揃え＆自動全詰め（少し遅延させてスニペット追加後に実行）
+                    // 自動全詰めのみ実行（サイズ統一は行わない - 各スニペットのアスペクト比を維持）
                     setTimeout(() => {
-                      handleAutoUnifySize();
                       handleAutoRepack();
                     }, 100);
                   }}

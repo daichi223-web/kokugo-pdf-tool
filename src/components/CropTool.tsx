@@ -340,19 +340,25 @@ export function CropTool({
       return;
     }
 
-    canvas.width = selection.width;
-    canvas.height = selection.height;
+    // 座標を整数に丸める（小数点による誤差を防ぐ）
+    const cropX = Math.round(selection.x);
+    const cropY = Math.round(selection.y);
+    const cropW = Math.round(selection.width);
+    const cropH = Math.round(selection.height);
+
+    canvas.width = cropW;
+    canvas.height = cropH;
 
     ctx.drawImage(
       img,
-      selection.x,
-      selection.y,
-      selection.width,
-      selection.height,
+      cropX,
+      cropY,
+      cropW,
+      cropH,
       0,
       0,
-      selection.width,
-      selection.height
+      cropW,
+      cropH
     );
 
     const croppedImageData = canvas.toDataURL('image/png');
@@ -365,15 +371,23 @@ export function CropTool({
       sourcePageNumber
     );
 
+    // 整数に丸めたcropArea
+    const roundedCropArea = {
+      x: cropX,
+      y: cropY,
+      width: cropW,
+      height: cropH,
+    };
+
     // BATCH-002: 一括モードの場合はonBatchCropを呼び出し
     if (batchMode && onBatchCrop) {
-      onBatchCrop(selection);
+      onBatchCrop(roundedCropArea);
     } else if (updateSnippetId) {
       // 更新モード：既存スニペットを更新
       updateSnippet(updateSnippetId, {
         sourceFileId,
         sourcePageNumber,
-        cropArea: selection,
+        cropArea: roundedCropArea,
         cropZoom: zoom,  // トリミング時のズーム値を保存
         imageData: croppedImageData,
       });
@@ -381,7 +395,7 @@ export function CropTool({
       addSnippet({
         sourceFileId,
         sourcePageNumber,
-        cropArea: selection,
+        cropArea: roundedCropArea,
         cropZoom: zoom,  // トリミング時のズーム値を保存
         imageData: croppedImageData,
       });
@@ -394,6 +408,90 @@ export function CropTool({
       onCropComplete();
     }
   }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, zoom, addSnippet, updateSnippet, updateSnippetId, batchMode, onBatchCrop, onCropComplete]);
+
+  // 単体切り出し（batchModeでも現在のページのみ切り出す）
+  const handleSingleCrop = useCallback(async () => {
+    setErrorMessage(null);
+    if (!selection || selection.width < 10 || selection.height < 10) {
+      setErrorMessage('選択範囲が小さすぎます（最小10x10ピクセル）');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setErrorMessage('キャンバスの作成に失敗しました');
+      return;
+    }
+
+    const img = new Image();
+    img.src = imageData;
+
+    try {
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+      });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '画像エラー');
+      return;
+    }
+
+    // 座標を整数に丸める（小数点による誤差を防ぐ）
+    const cropX = Math.round(selection.x);
+    const cropY = Math.round(selection.y);
+    const cropW = Math.round(selection.width);
+    const cropH = Math.round(selection.height);
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+
+    ctx.drawImage(
+      img,
+      cropX,
+      cropY,
+      cropW,
+      cropH,
+      0,
+      0,
+      cropW,
+      cropH
+    );
+
+    const croppedImageData = canvas.toDataURL('image/png');
+
+    // 整数に丸めたcropArea
+    const roundedCropArea = {
+      x: cropX,
+      y: cropY,
+      width: cropW,
+      height: cropH,
+    };
+
+    // テンプレートとして保存
+    saveTemplate(
+      templateScope,
+      { width: cropW, height: cropH, createdAt: Date.now() },
+      sourceFileId,
+      sourcePageNumber
+    );
+
+    // 常に単体として追加（batchModeを無視）
+    addSnippet({
+      sourceFileId,
+      sourcePageNumber,
+      cropArea: roundedCropArea,
+      cropZoom: zoom,
+      imageData: croppedImageData,
+    });
+
+    setSelection(null);
+
+    // 完了コールバック
+    if (onCropComplete) {
+      onCropComplete();
+    }
+  }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, zoom, addSnippet, onCropComplete]);
 
   const handleCancel = useCallback(() => {
     setSelection(null);
@@ -481,16 +579,34 @@ export function CropTool({
           className="fixed z-50 flex gap-1"
           style={{ top: buttonPos.top, right: buttonPos.right }}
         >
+          {/* 単体切り出しボタン（常に表示） */}
           <button
-            className={`flex items-center gap-1 px-3 py-2 text-white rounded shadow-lg ${
-              batchMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-green-500 hover:bg-green-600'
-            }`}
-            onClick={handleConfirm}
-            aria-label={batchMode ? '選択ページに一括適用' : '選択範囲を切り出し'}
+            className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded shadow-lg hover:bg-green-600"
+            onClick={() => {
+              // batchModeでも単体切り出しを実行
+              if (batchMode) {
+                // 一括モードでも単体切り出しできるように、直接addSnippetを呼ぶ
+                handleSingleCrop();
+              } else {
+                handleConfirm();
+              }
+            }}
+            aria-label="選択範囲を切り出し"
           >
             <Check className="w-4 h-4" />
-            {batchMode ? '一括適用' : '切り出し'}
+            切り出し
           </button>
+          {/* 一括適用ボタン（複数ページ選択時のみ表示） */}
+          {batchMode && (
+            <button
+              className="flex items-center gap-1 px-3 py-2 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600"
+              onClick={handleConfirm}
+              aria-label="選択ページに一括適用"
+            >
+              <Check className="w-4 h-4" />
+              一括適用
+            </button>
+          )}
           <button
             className="flex items-center gap-1 px-2 py-2 bg-gray-500 text-white rounded shadow-lg hover:bg-gray-600"
             onClick={handleCancel}
