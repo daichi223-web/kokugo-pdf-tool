@@ -1792,7 +1792,7 @@ export const useAppStore = create<Store>()(
         let currentPageSnippets: PlacedSnippet[] = [];
 
         if (isVertical) {
-          // 縦書き: 横に詰める（右→左）、列優先（上→下、右→左）
+          // 縦書き: 横に詰める（右→左）、行優先・右始点（右→左、上→下）
           // gridCols/gridRows指定があればそれを使用（4×2なら cols=4, rows=2）
           const cols = gridCols ?? 4;
           const rows = gridRows ?? 2;
@@ -1811,12 +1811,12 @@ export const useAppStore = create<Store>()(
             currentX = 0;
           };
 
-          // 次のセルへ移動（列優先: 上→下、右→左）
+          // 次のセルへ移動（行優先・右始点: 右→左、上→下）
           const advanceCell = () => {
-            currentRow++;
-            if (currentRow >= rows) {
-              currentRow = 0;
-              currentCol--;
+            currentCol--;
+            if (currentCol < 0) {
+              currentCol = cols - 1;
+              currentRow++;
             }
             currentX = 0;
           };
@@ -1839,7 +1839,7 @@ export const useAppStore = create<Store>()(
             }
 
             // Condition C: ページが満杯の場合、新しいページへ
-            if (currentCol < 0) {
+            if (currentRow >= rows) {
               pagesData.push({ snippets: currentPageSnippets });
               currentPageSnippets = [];
               resetState();

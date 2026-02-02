@@ -61,9 +61,9 @@ function getGridFillOrder(cols: number, rows: number, isVertical: boolean): numb
   const grid: number[][] = Array.from({ length: rows }, () => new Array(cols).fill(0));
   let order = 1;
   if (isVertical) {
-    // 列優先: 右列から左列、各列は上→下
-    for (let c = cols - 1; c >= 0; c--) {
-      for (let r = 0; r < rows; r++) {
+    // 行優先・右始点: 上行から下行、各行は右→左
+    for (let r = 0; r < rows; r++) {
+      for (let c = cols - 1; c >= 0; c--) {
         grid[r][c] = order++;
       }
     }
