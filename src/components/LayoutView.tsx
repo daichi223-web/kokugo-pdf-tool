@@ -56,6 +56,51 @@ const REPACK_GRIDS: Record<string, { cols: number; rows: number; label: string }
   '1x1': { cols: 1, rows: 1, label: '1×1' },
 };
 
+// グリッドの配置順を計算（縦書き: 列優先↓←、横書き: 行優先→↓）
+function getGridFillOrder(cols: number, rows: number, isVertical: boolean): number[][] {
+  const grid: number[][] = Array.from({ length: rows }, () => new Array(cols).fill(0));
+  let order = 1;
+  if (isVertical) {
+    // 列優先: 右列から左列、各列は上→下
+    for (let c = cols - 1; c >= 0; c--) {
+      for (let r = 0; r < rows; r++) {
+        grid[r][c] = order++;
+      }
+    }
+  } else {
+    // 行優先: 上行から下行、各行は左→右
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        grid[r][c] = order++;
+      }
+    }
+  }
+  return grid;
+}
+
+// 配置順をミニグリッドで表示するコンポーネント
+function GridOrderPreview({ cols, rows, isVertical }: { cols: number; rows: number; isVertical: boolean }) {
+  const grid = getGridFillOrder(cols, rows, isVertical);
+  const cellSize = cols <= 2 ? 16 : cols <= 3 ? 14 : 12;
+  return (
+    <div
+      className="inline-grid border border-purple-300 rounded bg-purple-50"
+      style={{ gridTemplateColumns: `repeat(${cols}, ${cellSize}px)`, gap: '1px' }}
+      title={`配置順（${isVertical ? '縦書き: 列優先 ↓←' : '横書き: 行優先 →↓'}）`}
+    >
+      {grid.flat().map((num, i) => (
+        <div
+          key={i}
+          className="flex items-center justify-center text-purple-600 font-bold bg-white"
+          style={{ width: cellSize, height: cellSize, fontSize: cellSize <= 12 ? 7 : 8 }}
+        >
+          {num}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LayoutView() {
   const {
     files,
@@ -705,18 +750,25 @@ export function LayoutView() {
                   全体
                 </button>
               </div>
-              {/* グリッドパターン選択（全体モード時のみ表示） */}
+              {/* グリッドパターン選択＋配置順プレビュー（全体モード時のみ表示） */}
               {arrangeScope === 'all' && (
-                <select
-                  className="px-1 py-0.5 text-xs border rounded bg-white text-purple-700"
-                  value={repackGrid}
-                  onChange={(e) => setRepackGrid(e.target.value as typeof repackGrid)}
-                  title="グリッドパターン（列×行）"
-                >
-                  {Object.entries(REPACK_GRIDS).map(([key, { label }]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    className="px-1 py-0.5 text-xs border rounded bg-white text-purple-700"
+                    value={repackGrid}
+                    onChange={(e) => setRepackGrid(e.target.value as typeof repackGrid)}
+                    title="グリッドパターン（列×行）"
+                  >
+                    {Object.entries(REPACK_GRIDS).map(([key, { label }]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  <GridOrderPreview
+                    cols={REPACK_GRIDS[repackGrid].cols}
+                    rows={REPACK_GRIDS[repackGrid].rows}
+                    isVertical={settings.writingDirection === 'vertical'}
+                  />
+                </>
               )}
               {/* 詰めるボタン */}
               <button
