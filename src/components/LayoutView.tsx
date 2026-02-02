@@ -120,8 +120,6 @@ export function LayoutView() {
     addSnippet,
     applySnippetWidthToLayout,
     applySnippetHeightToLayout,
-    applySnippetXPositionToLayout,
-    applySnippetYPositionToLayout,
     reCropSnippetId,
     setReCropSnippet,
     selectedSnippetIds,
@@ -814,23 +812,6 @@ export function LayoutView() {
               title="高さを揃える"
             >
               高さ
-            </button>
-            <span className="text-blue-300">|</span>
-            <button
-              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetXPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.x)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="横位置を揃える"
-            >
-              X位置
-            </button>
-            <button
-              className="px-2 py-1 text-xs bg-cyan-500 text-white rounded hover:bg-cyan-600 disabled:opacity-50"
-              onClick={() => activeLayout && selectedPlacedSnippet && applySnippetYPositionToLayout(activeLayout.id, selectedPlacedSnippet.position.y)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="縦位置を揃える"
-            >
-              Y位置
             </button>
           </div>
 
