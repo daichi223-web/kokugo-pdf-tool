@@ -302,7 +302,7 @@ export interface AppActions {
   packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => void;
   repackAllSnippets: (pageId: string) => void;
-  repackAcrossPages: () => void;
+  repackAcrossPages: (cols?: number, rows?: number) => void;
   unifyAllPagesSnippetSize: () => void;
 
   // テキスト要素操作

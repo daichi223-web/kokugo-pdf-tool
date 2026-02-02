@@ -48,6 +48,14 @@ import {
 import { exportLayoutToPDF, printLayoutDirectly, type PdfQuality } from '../utils/exportUtils';
 import { applyImageEnhancement } from '../utils/pdfUtils';
 
+const REPACK_GRIDS: Record<string, { cols: number; rows: number; label: string }> = {
+  '4x2': { cols: 4, rows: 2, label: '4×2' },
+  '4x3': { cols: 4, rows: 3, label: '4×3' },
+  '3x2': { cols: 3, rows: 2, label: '3×2' },
+  '2x2': { cols: 2, rows: 2, label: '2×2' },
+  '1x1': { cols: 1, rows: 1, label: '1×1' },
+};
+
 export function LayoutView() {
   const {
     files,
@@ -99,6 +107,7 @@ export function LayoutView() {
   const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
   const reCropSourceScrollTopRef = useRef<number>(0);
   const [arrangeScope, setArrangeScope] = useState<'page' | 'all'>('page'); // 配置スコープ
+  const [repackGrid, setRepackGrid] = useState<'4x2' | '4x3' | '3x2' | '2x2' | '1x1'>('4x2'); // 詰めるグリッド
   const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard'); // PDF出力画質
   const [isPrinting, setIsPrinting] = useState(false);
   const [showEnhancementPreview, setShowEnhancementPreview] = useState(false); // 補正プレビュー
@@ -696,12 +705,26 @@ export function LayoutView() {
                   全体
                 </button>
               </div>
+              {/* グリッドパターン選択（全体モード時のみ表示） */}
+              {arrangeScope === 'all' && (
+                <select
+                  className="px-1 py-0.5 text-xs border rounded bg-white text-purple-700"
+                  value={repackGrid}
+                  onChange={(e) => setRepackGrid(e.target.value as typeof repackGrid)}
+                  title="グリッドパターン（列×行）"
+                >
+                  {Object.entries(REPACK_GRIDS).map(([key, { label }]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              )}
               {/* 詰めるボタン */}
               <button
                 className="px-3 py-1 text-xs bg-purple-500 text-white rounded font-bold hover:bg-purple-600"
                 onClick={() => {
                   if (arrangeScope === 'all') {
-                    repackAcrossPages();
+                    const { cols, rows } = REPACK_GRIDS[repackGrid];
+                    repackAcrossPages(cols, rows);
                   } else {
                     repackAllSnippets(activeLayout.id);
                   }
