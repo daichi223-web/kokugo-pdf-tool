@@ -1650,38 +1650,54 @@ export const useAppStore = create<Store>()(
         const positionMap = new Map<string, { x: number; y: number }>();
 
         if (isVertical) {
-          // 縦書き: 横に詰める（右→左）、行内に幅が許す限り詰める
+          // 縦書き: セルベースで横に配置（右→左）、列が行をまたいで揃う
+          const maxSnippetWidth = Math.max(...snippetsToPlace.map((s) => s.size.width));
           const maxSnippetHeight = Math.max(...snippetsToPlace.map((s) => s.size.height));
+          const cols = Math.max(1, Math.floor(availableWidth / maxSnippetWidth));
           const rows = Math.max(1, Math.floor(availableHeight / maxSnippetHeight));
-          const rowHeight = availableHeight / rows;
+          const cellWidth = availableWidth / cols;
+          const cellHeight = availableHeight / rows;
 
-          // 各行の現在のX使用量を追跡（右端から累積）
-          const rowWidths: number[] = new Array(rows).fill(0);
+          // 各セルの使用高さを追跡（セル内に縦に積む）
+          const cellUsedHeight: number[][] = Array.from({ length: rows }, () => new Array(cols).fill(0));
+          // 行優先・右始点で進行
+          let currentCol = cols - 1;
           let currentRow = 0;
 
           snippetsToPlace.forEach((snippet) => {
-            const width = snippet.size.width;
+            const height = snippet.size.height;
 
-            // 現在の行に収まるかチェック
-            const remainingWidth = availableWidth - rowWidths[currentRow];
-
-            if (width > remainingWidth && rowWidths[currentRow] > 0) {
-              // 収まらない場合、次の行へ移動
-              currentRow++;
-              if (currentRow >= rows) {
-                // 全行が埋まった - 配置できない
-                return;
+            // 現在のセルに収まるかチェック
+            const remainingHeight = cellHeight - cellUsedHeight[currentRow][currentCol];
+            if (height > remainingHeight && cellUsedHeight[currentRow][currentCol] > 0) {
+              // 次のセルへ（行優先・右始点: 右→左、上→下）
+              currentCol--;
+              if (currentCol < 0) {
+                currentCol = cols - 1;
+                currentRow++;
               }
+              if (currentRow >= rows) return; // 全セル使用済み
             }
 
-            // 右端から左へ詰める: x = 右端 - 累積幅 - スニペット幅
-            const x = availableWidth - rowWidths[currentRow] - width;
-            const y = currentRow * rowHeight;
+            // セルの左上座標を基準に、セル内で右寄せ配置
+            const cellX = currentCol * cellWidth;
+            const cellY = currentRow * cellHeight;
+            const x = cellX + cellWidth - snippet.size.width; // セル内右寄せ
+            const y = cellY + cellUsedHeight[currentRow][currentCol];
 
             positionMap.set(snippet.snippetId, { x, y });
 
-            // 行の使用幅を更新
-            rowWidths[currentRow] += width;
+            // セル内使用高さを更新
+            cellUsedHeight[currentRow][currentCol] += height;
+
+            // セルが満杯なら次へ
+            if (cellUsedHeight[currentRow][currentCol] >= cellHeight) {
+              currentCol--;
+              if (currentCol < 0) {
+                currentCol = cols - 1;
+                currentRow++;
+              }
+            }
           });
         } else {
           // 横書き: 縦に積む（上→下）、列内に高さが許す限り積む
@@ -1792,23 +1808,24 @@ export const useAppStore = create<Store>()(
         let currentPageSnippets: PlacedSnippet[] = [];
 
         if (isVertical) {
-          // 縦書き: 横に詰める（右→左）、行優先・右始点（右→左、上→下）
-          // gridCols/gridRows指定があればそれを使用（4×2なら cols=4, rows=2）
+          // 縦書き: セルベースのグリッド配置（行優先・右始点）
+          // 各セルは固定位置。セル内でスニペットを縦に積み、右端揃え。
+          // → 列が行をまたいで揃う
           const cols = gridCols ?? 4;
           const rows = gridRows ?? 2;
 
           const cellWidth = availableWidth / cols;
           const cellHeight = availableHeight / rows;
 
-          // Bin-Packing状態（セル内のX累積量）
-          let currentCol = cols - 1; // 右列から開始
+          // 各セルの使用高さを追跡
+          let currentCol = cols - 1;
           let currentRow = 0;
-          let currentX = 0; // セル内の使用幅（右端から累積）
+          let currentY = 0; // セル内のY使用量
 
           const resetState = () => {
             currentCol = cols - 1;
             currentRow = 0;
-            currentX = 0;
+            currentY = 0;
           };
 
           // 次のセルへ移動（行優先・右始点: 右→左、上→下）
@@ -1818,12 +1835,12 @@ export const useAppStore = create<Store>()(
               currentCol = cols - 1;
               currentRow++;
             }
-            currentX = 0;
+            currentY = 0;
           };
 
           allPlacedSnippets.forEach((snippet) => {
             const snippetData = snippetMap.get(snippet.snippetId);
-            const snipWidth = snippet.size.width;
+            const snipHeight = snippet.size.height;
 
             // 改ページフラグ
             if (snippetData?.pageBreakBefore && currentPageSnippets.length > 0) {
@@ -1833,8 +1850,8 @@ export const useAppStore = create<Store>()(
             }
 
             // Condition B: セルに入らない場合、次のセルへ
-            const remainingWidth = cellWidth - currentX;
-            if (snipWidth > remainingWidth && currentX > 0) {
+            const remainingHeight = cellHeight - currentY;
+            if (snipHeight > remainingHeight && currentY > 0) {
               advanceCell();
             }
 
@@ -1845,10 +1862,11 @@ export const useAppStore = create<Store>()(
               resetState();
             }
 
-            // 配置位置を計算（セル内で右端から左へ詰める）
-            const cellLeftX = currentCol * cellWidth;
-            const x = cellLeftX + cellWidth - currentX - snipWidth;
-            const y = currentRow * cellHeight;
+            // セルのグリッド座標から配置位置を計算（セル内右寄せ）
+            const cellX = currentCol * cellWidth;
+            const cellY = currentRow * cellHeight;
+            const x = cellX + cellWidth - snippet.size.width; // セル内右端揃え
+            const y = cellY + currentY;
 
             currentPageSnippets.push({
               snippetId: snippet.snippetId,
@@ -1857,11 +1875,11 @@ export const useAppStore = create<Store>()(
               rotation: snippet.rotation,
             });
 
-            // セル内X位置を更新
-            currentX += snipWidth;
+            // セル内Y位置を更新
+            currentY += snipHeight;
 
             // セルが満杯になったら次のセルへ
-            if (currentX >= cellWidth) {
+            if (currentY >= cellHeight) {
               advanceCell();
             }
           });
