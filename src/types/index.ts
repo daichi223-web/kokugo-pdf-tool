@@ -186,7 +186,6 @@ export interface AppSettings {
   rubyBracketMode: boolean; // true: 漢字（かんじ）, false: 漢字のみ
   showGrid: boolean;
   gridSize: number;
-  snapToGrid: boolean;
   defaultPaperSize: PaperSize;
   defaultPaperOrientation: PaperOrientation;
   writingDirection: 'vertical' | 'horizontal'; // 縦書き or 横書き
@@ -257,11 +256,8 @@ export interface AppActions {
   addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetPosition: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetSize: (pageId: string, snippetId: string, size: Size) => void;
-  applySnippetSizeToLayout: (pageId: string, size: Size) => void;
   applySnippetWidthToLayout: (pageId: string, targetWidth: number) => void;
   applySnippetHeightToLayout: (pageId: string, targetHeight: number) => void;
-  applySnippetXPositionToLayout: (pageId: string, targetX: number) => void;
-  applySnippetYPositionToLayout: (pageId: string, targetY: number) => void;
   removeSnippetFromLayout: (pageId: string, snippetId: string) => void;
   updateLayoutPageMargin: (pageId: string, margin: number) => void;
   updateLayoutPageMarginX: (pageId: string, marginX: number) => void;
@@ -294,10 +290,8 @@ export interface AppActions {
   selectAllPlacedSnippets: (pageId: string) => void;
 
   // 配置操作（グリッド配置・整列）
-  arrangeSnippetsInGrid: (pageId: string, cols: number, rows: number, orderHorizontal: boolean) => void;
   arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX?: number, gapY?: number) => void;
   alignSnippets: (pageId: string, alignment: 'top' | 'left' | 'bottom' | 'right') => void;
-  distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   unifySnippetSize: (pageId: string, dimension: 'width' | 'height' | 'both') => void;
   packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => void;
   adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => void;

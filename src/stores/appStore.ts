@@ -43,7 +43,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   rubyBracketMode: true,
   showGrid: true,
   gridSize: 10,
-  snapToGrid: false,
   defaultPaperSize: 'A3',
   defaultPaperOrientation: 'landscape',
   writingDirection: 'vertical', // デフォルトは縦書き（A3横）
@@ -677,22 +676,6 @@ export const useAppStore = create<Store>()(
         }));
       },
 
-      applySnippetSizeToLayout: (pageId: string, size: Size) => {
-        // Undo用に履歴を保存
-        get().pushLayoutHistory();
-
-        set((state) => ({
-          layoutPages: state.layoutPages.map((page) =>
-            page.id === pageId
-              ? {
-                  ...page,
-                  snippets: page.snippets.map((s) => ({ ...s, size })),
-                }
-              : page
-          ),
-        }));
-      },
-
       // 横サイズ一括適用（アスペクト比保持）
       applySnippetWidthToLayout: (pageId: string, targetWidth: number) => {
         // Undo用に履歴を保存
@@ -755,46 +738,6 @@ export const useAppStore = create<Store>()(
               ? {
                   ...page,
                   snippets: page.snippets.filter((s) => s.snippetId !== snippetId),
-                }
-              : page
-          ),
-        }));
-      },
-
-      // X位置一括適用（横位置揃え）
-      applySnippetXPositionToLayout: (pageId: string, targetX: number) => {
-        // Undo用に履歴を保存
-        get().pushLayoutHistory();
-
-        set((state) => ({
-          layoutPages: state.layoutPages.map((page) =>
-            page.id === pageId
-              ? {
-                  ...page,
-                  snippets: page.snippets.map((s) => ({
-                    ...s,
-                    position: { ...s.position, x: targetX },
-                  })),
-                }
-              : page
-          ),
-        }));
-      },
-
-      // Y位置一括適用（高さ位置揃え）
-      applySnippetYPositionToLayout: (pageId: string, targetY: number) => {
-        // Undo用に履歴を保存
-        get().pushLayoutHistory();
-
-        set((state) => ({
-          layoutPages: state.layoutPages.map((page) =>
-            page.id === pageId
-              ? {
-                  ...page,
-                  snippets: page.snippets.map((s) => ({
-                    ...s,
-                    position: { ...s.position, y: targetY },
-                  })),
                 }
               : page
           ),
@@ -1069,86 +1012,6 @@ export const useAppStore = create<Store>()(
       },
 
       // グリッド配置
-      arrangeSnippetsInGrid: (pageId: string, cols: number, rows: number, orderHorizontal: boolean) => {
-        const { layoutPages, selectedSnippetIds, snippets } = get();
-        const page = layoutPages.find((p) => p.id === pageId);
-        if (!page) return;
-
-        // Undo用に履歴を保存
-        get().pushLayoutHistory();
-
-        // 選択されたスニペットを取得（選択順を維持）
-        const selectedPlaced = selectedSnippetIds
-          .map((id) => page.snippets.find((s) => s.snippetId === id))
-          .filter((s): s is NonNullable<typeof s> => s !== undefined);
-
-        if (selectedPlaced.length === 0) return;
-
-        // 用紙サイズを取得
-        const paperSize = getPaperDimensions(page.paperSize, page.orientation);
-        const pageWidth = mmToPx(paperSize.width, 96);
-        const pageHeight = mmToPx(paperSize.height, 96);
-        const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96); // 左右余白
-        const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96); // 上下余白
-
-        // 配置可能エリア
-        const availableWidth = pageWidth - marginX * 2;
-        const availableHeight = pageHeight - marginY * 2;
-
-        // セルサイズ
-        const cellWidth = availableWidth / cols;
-        const cellHeight = availableHeight / rows;
-
-        // グリッド配置
-        const newSnippets = page.snippets.map((placed) => {
-          const selectedIndex = selectedSnippetIds.indexOf(placed.snippetId);
-          if (selectedIndex === -1) return placed;
-
-          let gridIndex: number;
-          if (orderHorizontal) {
-            // 横優先（→）: 0,1,2,3 / 4,5,6,7
-            gridIndex = selectedIndex;
-          } else {
-            // 縦優先（↓）: 0,2,4,6 / 1,3,5,7
-            const col = Math.floor(selectedIndex / rows);
-            const row = selectedIndex % rows;
-            gridIndex = row * cols + col;
-          }
-
-          const col = gridIndex % cols;
-          const row = Math.floor(gridIndex / cols);
-
-          // セル内で中央配置
-          const snippet = snippets.find((s) => s.id === placed.snippetId);
-          const cropZoom = snippet?.cropZoom || 1;
-          const snippetWidth = snippet ? snippet.cropArea.width * cropZoom : placed.size.width;
-          const snippetHeight = snippet ? snippet.cropArea.height * cropZoom : placed.size.height;
-
-          // サイズをセルに収まるように調整
-          const scale = Math.min(cellWidth / snippetWidth, cellHeight / snippetHeight, 1);
-          const newWidth = snippetWidth * scale;
-          const newHeight = snippetHeight * scale;
-
-          return {
-            ...placed,
-            position: {
-              x: col * cellWidth + (cellWidth - newWidth) / 2,
-              y: row * cellHeight + (cellHeight - newHeight) / 2,
-            },
-            size: {
-              width: newWidth,
-              height: newHeight,
-            },
-          };
-        });
-
-        set((state) => ({
-          layoutPages: state.layoutPages.map((p) =>
-            p.id === pageId ? { ...p, snippets: newSnippets } : p
-          ),
-        }));
-      },
-
       // 全スニペットをグリッド配置（スニペットリストから一括配置）
       // autoCreatePages: trueの場合、グリッド容量を超えたら自動でページを追加
       // pageBreakBeforeフラグがあるスニペットは強制的に次のページに配置
@@ -1387,83 +1250,6 @@ export const useAppStore = create<Store>()(
       },
 
       // 等間隔配置
-      distributeSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => {
-        const { layoutPages, selectedSnippetIds } = get();
-        const page = layoutPages.find((p) => p.id === pageId);
-        if (!page || selectedSnippetIds.length < 3) return;
-
-        // Undo用に履歴を保存
-        get().pushLayoutHistory();
-
-        const selectedPlaced = page.snippets
-          .filter((s) => selectedSnippetIds.includes(s.snippetId))
-          .sort((a, b) =>
-            direction === 'horizontal'
-              ? a.position.x - b.position.x
-              : a.position.y - b.position.y
-          );
-
-        if (direction === 'horizontal') {
-          const first = selectedPlaced[0];
-          const last = selectedPlaced[selectedPlaced.length - 1];
-          const totalWidth = selectedPlaced.reduce((sum, s) => sum + s.size.width, 0);
-          const totalSpace = last.position.x + last.size.width - first.position.x - totalWidth;
-          const gap = totalSpace / (selectedPlaced.length - 1);
-
-          let currentX = first.position.x;
-          const positionMap = new Map<string, number>();
-          selectedPlaced.forEach((s) => {
-            positionMap.set(s.snippetId, currentX);
-            currentX += s.size.width + gap;
-          });
-
-          set((state) => ({
-            layoutPages: state.layoutPages.map((p) =>
-              p.id === pageId
-                ? {
-                    ...p,
-                    snippets: p.snippets.map((s) => {
-                      const newX = positionMap.get(s.snippetId);
-                      return newX !== undefined
-                        ? { ...s, position: { ...s.position, x: newX } }
-                        : s;
-                    }),
-                  }
-                : p
-            ),
-          }));
-        } else {
-          const first = selectedPlaced[0];
-          const last = selectedPlaced[selectedPlaced.length - 1];
-          const totalHeight = selectedPlaced.reduce((sum, s) => sum + s.size.height, 0);
-          const totalSpace = last.position.y + last.size.height - first.position.y - totalHeight;
-          const gap = totalSpace / (selectedPlaced.length - 1);
-
-          let currentY = first.position.y;
-          const positionMap = new Map<string, number>();
-          selectedPlaced.forEach((s) => {
-            positionMap.set(s.snippetId, currentY);
-            currentY += s.size.height + gap;
-          });
-
-          set((state) => ({
-            layoutPages: state.layoutPages.map((p) =>
-              p.id === pageId
-                ? {
-                    ...p,
-                    snippets: p.snippets.map((s) => {
-                      const newY = positionMap.get(s.snippetId);
-                      return newY !== undefined
-                        ? { ...s, position: { ...s.position, y: newY } }
-                        : s;
-                    }),
-                  }
-                : p
-            ),
-          }));
-        }
-      },
-
       // 端をぴったりくっつける（選択したスニペットを隙間なく並べる）
       packSnippets: (pageId: string, direction: 'horizontal' | 'vertical') => {
         const { layoutPages, selectedSnippetIds } = get();
