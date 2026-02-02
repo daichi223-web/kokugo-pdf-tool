@@ -1768,28 +1768,68 @@ export const useAppStore = create<Store>()(
         const baseMarginX = firstPage.marginX ?? firstPage.margin ?? 15;
         const baseMarginY = firstPage.marginY ?? firstPage.margin ?? 15;
 
-        // 全ページからスニペットを収集
-        const allPlacedSnippets: { snippetId: string; size: Size; position: Position; rotation: number }[] = [];
-        layoutPages.forEach((page) => {
-          page.snippets.forEach((placed) => {
-            allPlacedSnippets.push({ ...placed });
-          });
-        });
+        // 縦書き/横書きで方向を決定
+        const isVertical = settings.writingDirection === 'vertical';
 
-        if (allPlacedSnippets.length === 0) return;
-
-        // 元PDFのページ番号順でソート（改ページフラグも考慮）
+        // 全スニペットのマップを作成
         const snippetMap = new Map<string, typeof allSnippets[0]>();
         allSnippets.forEach((s) => {
           snippetMap.set(s.id, s);
         });
-        allPlacedSnippets.sort((a, b) => {
+
+        // 全ページから配置済みスニペットを収集（サイズ情報を保持）
+        const placedSizeMap = new Map<string, { size: Size; rotation: number }>();
+        layoutPages.forEach((page) => {
+          page.snippets.forEach((placed) => {
+            placedSizeMap.set(placed.snippetId, { size: placed.size, rotation: placed.rotation });
+          });
+        });
+
+        // 全スニペットを対象にする（配置済み＋未配置）
+        // 未配置のスニペットはcropArea × cropZoomからサイズを算出
+        const allTargetSnippets: { snippetId: string; size: Size; rotation: number }[] = [];
+
+        // 既存の配置済みスニペットのサイズを基準にして未配置のサイズを決定
+        const firstPlaced = placedSizeMap.size > 0 ? [...placedSizeMap.values()][0] : null;
+
+        allSnippets.forEach((snippet) => {
+          const placed = placedSizeMap.get(snippet.id);
+          if (placed) {
+            // 配置済み: 既存のサイズを使用
+            allTargetSnippets.push({ snippetId: snippet.id, size: placed.size, rotation: placed.rotation });
+          } else {
+            // 未配置: cropAreaからサイズ算出、既存スニペットに揃える
+            const cropZoom = snippet.cropZoom || 1;
+            let size = {
+              width: snippet.cropArea.width * cropZoom,
+              height: snippet.cropArea.height * cropZoom,
+            };
+            // 既存の配置済みスニペットがあればサイズを揃える
+            if (firstPlaced) {
+              if (isVertical) {
+                const aspectRatio = size.width / size.height;
+                size = { width: firstPlaced.size.height * aspectRatio, height: firstPlaced.size.height };
+              } else {
+                const aspectRatio = size.height / size.width;
+                size = { width: firstPlaced.size.width, height: firstPlaced.size.width * aspectRatio };
+              }
+            }
+            allTargetSnippets.push({ snippetId: snippet.id, size, rotation: 0 });
+          }
+        });
+
+        if (allTargetSnippets.length === 0) return;
+
+        // 元PDFのページ番号順でソート
+        allTargetSnippets.sort((a, b) => {
           const snippetA = snippetMap.get(a.snippetId);
           const snippetB = snippetMap.get(b.snippetId);
           const pageA = snippetA?.sourcePageNumber ?? 0;
           const pageB = snippetB?.sourcePageNumber ?? 0;
           return pageA - pageB;
         });
+
+        const allPlacedSnippets = allTargetSnippets;
 
         // 用紙設定: 最初のページの設定を使用
         const paperSize = getPaperDimensions(basePaperSize, baseOrientation);
@@ -1799,9 +1839,6 @@ export const useAppStore = create<Store>()(
         const paperHeightPx = mmToPx(paperSize.height, 96);
         const availableWidth = paperWidthPx - marginXPx * 2;
         const availableHeight = paperHeightPx - marginYPx * 2;
-
-        // 縦書き/横書きで方向を決定
-        const isVertical = settings.writingDirection === 'vertical';
 
         // ページごとのスニペット配置を格納
         const pagesData: { snippets: PlacedSnippet[] }[] = [];
