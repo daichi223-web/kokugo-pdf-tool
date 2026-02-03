@@ -1480,8 +1480,10 @@ export const useAppStore = create<Store>()(
 
         if (isVertical) {
           // 縦書き: 右端から左へ詰める
+          // columns[maxCols-1]が右端の列（スニペット1,3,...）
           let cursorX = availableWidth;
-          for (const col of columns) {
+          for (let ci = maxCols - 1; ci >= 0; ci--) {
+            const col = columns[ci];
             if (col.snippetIds.length === 0) continue;
             cursorX -= col.maxWidth;
             let cursorY = 0;
@@ -1493,8 +1495,10 @@ export const useAppStore = create<Store>()(
           }
         } else {
           // 横書き: 左端から右へ詰める
+          // columns[0]が左端の列（スニペット1,3,...）
           let cursorX = 0;
-          for (const col of columns) {
+          for (let ci = 0; ci < maxCols; ci++) {
+            const col = columns[ci];
             if (col.snippetIds.length === 0) continue;
             let cursorY = 0;
             for (let i = 0; i < col.snippetIds.length; i++) {
@@ -1697,8 +1701,11 @@ export const useAppStore = create<Store>()(
 
           if (isVertical) {
             // 縦書き: 右端から左へ詰める
+            // columns[maxCols-1]が右端の列（スニペット1,3,...）
             let cursorX = availableWidth;
-            for (const col of page.columns) {
+            for (let ci = maxCols - 1; ci >= 0; ci--) {
+              const col = page.columns[ci];
+              if (col.snippets.length === 0) continue;
               cursorX -= col.maxWidth;
               let cursorY = 0;
               for (const placed of col.snippets) {
@@ -1709,8 +1716,11 @@ export const useAppStore = create<Store>()(
             }
           } else {
             // 横書き: 左端から右へ詰める
+            // columns[0]が左端の列（スニペット1,3,...）
             let cursorX = 0;
-            for (const col of page.columns) {
+            for (let ci = 0; ci < maxCols; ci++) {
+              const col = page.columns[ci];
+              if (col.snippets.length === 0) continue;
               let cursorY = 0;
               for (const placed of col.snippets) {
                 result.push({ ...placed, position: { x: cursorX, y: cursorY } });
