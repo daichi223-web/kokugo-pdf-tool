@@ -1436,7 +1436,7 @@ export const useAppStore = create<Store>()(
 
         const isVertical = settings.writingDirection === 'vertical';
 
-        // カラムパッキング: スニペット同士を隙間なく接触させる
+        // カラムパッキング: スニペット同士を隙間なく接触させる（サイズは変更しない）
         // Phase 1: スニペットを列に割り当て
         type ColumnData = { snippetIds: string[]; sizes: { width: number; height: number }[]; maxWidth: number; usedHeight: number };
         const columns: ColumnData[] = [{ snippetIds: [], sizes: [], maxWidth: 0, usedHeight: 0 }];
@@ -1448,9 +1448,8 @@ export const useAppStore = create<Store>()(
 
           // 現在の列に収まるかチェック
           if (columns[col].usedHeight + h > availableHeight && columns[col].usedHeight > 0) {
-            // 次の列へ
             col++;
-            if (col >= maxCols) return; // 列数上限
+            if (col >= maxCols) return;
             columns.push({ snippetIds: [], sizes: [], maxWidth: 0, usedHeight: 0 });
           }
 
@@ -1506,6 +1505,7 @@ export const useAppStore = create<Store>()(
 
       // 全ページを跨いで詰め直す（カラムパッキング・隙間なし）
       // 最初のページの設定を引き継いで全スニペットを詰め直し、空ページは削除
+      // サイズは変更しない（「配置」で設定されたサイズを維持）
       repackAcrossPages: (gridCols?: number, _gridRows?: number) => {
         const { layoutPages, snippets: allSnippets, settings } = get();
         if (layoutPages.length === 0) return;
@@ -1544,8 +1544,10 @@ export const useAppStore = create<Store>()(
         allSnippets.forEach((snippet) => {
           const placed = placedSizeMap.get(snippet.id);
           if (placed) {
+            // 配置済み: 既存のサイズを使用
             allTargetSnippets.push({ snippetId: snippet.id, size: placed.size, rotation: placed.rotation });
           } else {
+            // 未配置: cropAreaからサイズ算出、既存スニペットに揃える
             const cropZoom = snippet.cropZoom || 1;
             let size = {
               width: snippet.cropArea.width * cropZoom,
@@ -1586,49 +1588,10 @@ export const useAppStore = create<Store>()(
           maxWidth: number;
           usedHeight: number;
         };
-        type PageData = {
-          columns: ColumnData[];
-          usedWidth: number; // 使用済み幅の合計
-        };
+        type PageData = { columns: ColumnData[] };
 
-        const pages: PageData[] = [{ columns: [], usedWidth: 0 }];
+        const pages: PageData[] = [{ columns: [] }];
 
-        // 列にスニペットを追加する関数
-        const addToColumn = (page: PageData, colIndex: number, snippet: typeof allTargetSnippets[0]) => {
-          const col = page.columns[colIndex];
-          const w = snippet.size.width;
-          const h = snippet.size.height;
-
-          // 列の幅が広がる場合、ページ幅に収まるかチェック
-          const widthIncrease = Math.max(0, w - col.maxWidth);
-          if (page.usedWidth + widthIncrease > availableWidth) return false;
-
-          col.usedHeight += h;
-          page.usedWidth += widthIncrease;
-          col.maxWidth = Math.max(col.maxWidth, w);
-
-          // 仮の位置（後で計算し直す）
-          col.snippets.push({
-            snippetId: snippet.snippetId,
-            size: snippet.size,
-            position: { x: 0, y: 0 },
-            rotation: snippet.rotation,
-          });
-          return true;
-        };
-
-        // 新しい列を追加する関数
-        const addNewColumn = (page: PageData, snippet: typeof allTargetSnippets[0]): boolean => {
-          if (page.columns.length >= maxCols) return false;
-          const w = snippet.size.width;
-          if (page.usedWidth + w > availableWidth) return false;
-
-          const newCol: ColumnData = { snippets: [], maxWidth: 0, usedHeight: 0 };
-          page.columns.push(newCol);
-          return addToColumn(page, page.columns.length - 1, snippet);
-        };
-
-        // スニペットを配置
         for (const snippet of allTargetSnippets) {
           const snippetData = snippetMap.get(snippet.snippetId);
           const h = snippet.size.height;
@@ -1637,7 +1600,7 @@ export const useAppStore = create<Store>()(
           if (snippetData?.pageBreakBefore) {
             const lastPage = pages[pages.length - 1];
             if (lastPage.columns.length > 0 && lastPage.columns.some(c => c.snippets.length > 0)) {
-              pages.push({ columns: [], usedWidth: 0 });
+              pages.push({ columns: [] });
             }
           }
 
@@ -1645,31 +1608,51 @@ export const useAppStore = create<Store>()(
 
           // 全ページの既存列で空きを探す（前のページ優先）
           for (const page of pages) {
-            for (let ci = 0; ci < page.columns.length; ci++) {
-              const col = page.columns[ci];
+            for (const col of page.columns) {
               if (col.usedHeight + h <= availableHeight) {
-                placed = addToColumn(page, ci, snippet);
-                if (placed) break;
+                col.snippets.push({
+                  snippetId: snippet.snippetId,
+                  size: snippet.size,
+                  position: { x: 0, y: 0 },
+                  rotation: snippet.rotation,
+                });
+                col.usedHeight += h;
+                col.maxWidth = Math.max(col.maxWidth, snippet.size.width);
+                placed = true;
+                break;
               }
             }
             if (placed) break;
 
-            // 既存列に入らない場合、このページに新列を追加
+            // このページに新列を追加
             if (page.columns.length < maxCols) {
-              placed = addNewColumn(page, snippet);
-              if (placed) break;
+              const newCol: ColumnData = { snippets: [], maxWidth: snippet.size.width, usedHeight: h };
+              newCol.snippets.push({
+                snippetId: snippet.snippetId,
+                size: snippet.size,
+                position: { x: 0, y: 0 },
+                rotation: snippet.rotation,
+              });
+              page.columns.push(newCol);
+              placed = true;
+              break;
             }
           }
 
           // どのページにも入らない → 新ページ
           if (!placed) {
-            const newPage: PageData = { columns: [], usedWidth: 0 };
-            pages.push(newPage);
-            addNewColumn(newPage, snippet);
+            const newCol: ColumnData = { snippets: [], maxWidth: snippet.size.width, usedHeight: h };
+            newCol.snippets.push({
+              snippetId: snippet.snippetId,
+              size: snippet.size,
+              position: { x: 0, y: 0 },
+              rotation: snippet.rotation,
+            });
+            pages.push({ columns: [newCol] });
           }
         }
 
-        // Phase 2: 各ページの列から実際のX,Y座標を計算（隙間なし）
+        // Phase 2: 各ページのX,Y座標を計算（隙間なし）
         const pagesResult: PlacedSnippet[][] = [];
 
         for (const page of pages) {
