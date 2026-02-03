@@ -144,7 +144,7 @@ export function LayoutView() {
   const [layoutViewMode, setLayoutViewMode] = useState<'tab' | 'continuous'>('continuous'); // 連続表示がデフォルト
   const [pageGapX, setPageGapX] = useState(0); // ページ内間隔調整（横）
   const [pageGapY, setPageGapY] = useState(0); // ページ内間隔調整（縦）
-  const [autoRepack, setAutoRepack] = useState(true); // 自動全詰め機能
+  const [autoRepack, setAutoRepack] = useState(false); // 自動全詰め機能
 
   // 再トリミング時の元のレイアウトページIDとスクロール位置を記憶
   const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
