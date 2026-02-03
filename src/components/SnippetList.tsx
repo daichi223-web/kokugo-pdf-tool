@@ -32,11 +32,13 @@ export function SnippetList() {
     arrangeAllSnippetsInGrid,
     layoutPages,
     settings,
+    updateSettings,
     clearAllPlacements,
     reorderSnippets,
   } = useAppStore();
 
-  const [gridPattern, setGridPattern] = useState<'4x2' | '4x3' | '3x2' | '2x2' | '1x1'>('4x2');
+  const gridPattern = settings.gridPattern;
+  const setGridPattern = (pattern: typeof gridPattern) => updateSettings({ gridPattern: pattern });
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const draggedIndexRef = useRef<number | null>(null);
 
@@ -46,9 +48,9 @@ export function SnippetList() {
     if (activeLayoutPage) {
       // 横向き（landscape）→ 4×2、縦向き（portrait）→ 2×2
       const defaultPattern = activeLayoutPage.orientation === 'landscape' ? '4x2' : '2x2';
-      setGridPattern(defaultPattern);
+      updateSettings({ gridPattern: defaultPattern });
     }
-  }, [activeLayoutPageId, activeLayoutPage?.orientation]);
+  }, [activeLayoutPageId, activeLayoutPage?.orientation, updateSettings]);
 
   // スニペットを選択した時にソースファイル・ページもアクティブに設定
   const handleSnippetClick = (snippet: typeof snippets[0]) => {

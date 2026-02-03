@@ -150,7 +150,6 @@ export function LayoutView() {
   const reCropSourceLayoutPageIdRef = useRef<string | null>(null);
   const reCropSourceScrollTopRef = useRef<number>(0);
   const [arrangeScope, setArrangeScope] = useState<'page' | 'all'>('page'); // 配置スコープ
-  const [repackGrid, setRepackGrid] = useState<'4x2' | '4x3' | '3x2' | '2x2' | '1x1'>('4x2'); // 詰めるグリッド
   const [pdfQuality, setPdfQuality] = useState<PdfQuality>('standard'); // PDF出力画質
   const [isPrinting, setIsPrinting] = useState(false);
   const [showEnhancementPreview, setShowEnhancementPreview] = useState(false); // 補正プレビュー
@@ -753,8 +752,8 @@ export function LayoutView() {
                 <>
                   <select
                     className="px-1 py-0.5 text-xs border rounded bg-white text-purple-700"
-                    value={repackGrid}
-                    onChange={(e) => setRepackGrid(e.target.value as typeof repackGrid)}
+                    value={settings.gridPattern}
+                    onChange={(e) => updateSettings({ gridPattern: e.target.value as typeof settings.gridPattern })}
                     title="グリッドパターン（列×行）"
                   >
                     {Object.entries(REPACK_GRIDS).map(([key, { label }]) => (
@@ -762,8 +761,8 @@ export function LayoutView() {
                     ))}
                   </select>
                   <GridOrderPreview
-                    cols={REPACK_GRIDS[repackGrid].cols}
-                    rows={REPACK_GRIDS[repackGrid].rows}
+                    cols={REPACK_GRIDS[settings.gridPattern].cols}
+                    rows={REPACK_GRIDS[settings.gridPattern].rows}
                     isVertical={settings.writingDirection === 'vertical'}
                   />
                 </>
@@ -773,7 +772,7 @@ export function LayoutView() {
                 className="px-3 py-1 text-xs bg-purple-500 text-white rounded font-bold hover:bg-purple-600"
                 onClick={() => {
                   if (arrangeScope === 'all') {
-                    const { cols, rows } = REPACK_GRIDS[repackGrid];
+                    const { cols, rows } = REPACK_GRIDS[settings.gridPattern];
                     repackAcrossPages(cols, rows);
                   } else {
                     repackAllSnippets(activeLayout.id);

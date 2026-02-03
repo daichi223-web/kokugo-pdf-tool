@@ -194,6 +194,7 @@ export interface AppSettings {
   layoutAnchor: LayoutAnchor; // 配置基準点（間隔・余白調整時の固定位置）
   showSnippetBorder: boolean; // スニペットに黒い縁取りを表示
   snippetBorderWidth: number; // 縁取りの幅（mm）
+  gridPattern: '4x2' | '4x3' | '3x2' | '2x2' | '1x1'; // グリッドパターン（配置・詰め共通）
 }
 
 // ストア関連の型

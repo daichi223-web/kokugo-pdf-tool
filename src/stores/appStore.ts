@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   layoutAnchor: 'right-top', // デフォルトは右上（縦書き用）
   showSnippetBorder: false, // スニペット縁取り（デフォルトOFF）
   snippetBorderWidth: 0.5, // 縁取り幅（mm）
+  gridPattern: '4x2', // グリッドパターン（配置・詰め共通）
 };
 
 interface Store extends AppState, AppActions {
