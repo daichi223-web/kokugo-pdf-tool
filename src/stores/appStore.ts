@@ -1600,7 +1600,7 @@ export const useAppStore = create<Store>()(
         const availableWidth = mmToPx(paperSize.width, 96) - mmToPx(baseMarginX, 96) * 2;
         const availableHeight = mmToPx(paperSize.height, 96) - mmToPx(baseMarginY, 96) * 2;
 
-        // 行優先ラウンドロビンでスニペットを列に配分（ページ跨ぎ・隙間埋め）
+        // 行優先ラウンドロビンでスニペットを列に配分（ページ跨ぎ）
         // 縦書き: 行を右→左に埋めてから次の行（2,1 / 4,3 / 5）
         // 横書き: 行を左→右に埋めてから次の行（1,2 / 3,4 / 5）
         type ColumnData = {
@@ -1619,14 +1619,34 @@ export const useAppStore = create<Store>()(
           return { columns: cols };
         };
 
+        const addToCol = (col: ColumnData, snippet: typeof allTargetSnippets[0]) => {
+          col.snippets.push({
+            snippetId: snippet.snippetId,
+            size: snippet.size,
+            position: { x: 0, y: 0 },
+            rotation: snippet.rotation,
+          });
+          col.usedHeight += snippet.size.height;
+          col.maxWidth = Math.max(col.maxWidth, snippet.size.width);
+        };
+
         const pages: PageData[] = [createPage()];
         let currentPageIdx = 0;
         let colCursor = isVertical ? maxCols - 1 : 0;
 
+        const advanceCursor = () => {
+          if (isVertical) {
+            colCursor--;
+            if (colCursor < 0) colCursor = maxCols - 1;
+          } else {
+            colCursor++;
+            if (colCursor >= maxCols) colCursor = 0;
+          }
+        };
+
         for (const snippet of allTargetSnippets) {
           const snippetData = snippetMap.get(snippet.snippetId);
           const h = snippet.size.height;
-          const w = snippet.size.width;
 
           // 改ページフラグ
           if (snippetData?.pageBreakBefore) {
@@ -1638,83 +1658,34 @@ export const useAppStore = create<Store>()(
             }
           }
 
+          // 現在のページのカーソル列に入るか試す
+          const currentPage = pages[currentPageIdx];
+          if (currentPage.columns[colCursor].usedHeight + h <= availableHeight) {
+            addToCol(currentPage.columns[colCursor], snippet);
+            advanceCursor();
+            continue;
+          }
+
+          // カーソル列が満杯 → 現在ページの他の列を行優先順で探す
           let placed = false;
-
-          // まず全ページの既存列で空きを探す（前のページの隙間を埋める）
-          for (let pi = 0; pi <= currentPageIdx; pi++) {
-            const page = pages[pi];
-            // 行優先順で列を探索
-            const colOrder = isVertical
-              ? Array.from({ length: maxCols }, (_, i) => maxCols - 1 - i) // 右→左
-              : Array.from({ length: maxCols }, (_, i) => i); // 左→右
-            for (const ci of colOrder) {
-              if (page.columns[ci].usedHeight + h <= availableHeight) {
-                const col = page.columns[ci];
-                col.snippets.push({
-                  snippetId: snippet.snippetId,
-                  size: snippet.size,
-                  position: { x: 0, y: 0 },
-                  rotation: snippet.rotation,
-                });
-                col.usedHeight += h;
-                col.maxWidth = Math.max(col.maxWidth, w);
-                placed = true;
-                break;
-              }
-            }
-            if (placed) break;
-          }
-
-          if (!placed) {
-            // 現在のページのカーソル列に入るか試す
-            const currentPage = pages[currentPageIdx];
-            if (currentPage.columns[colCursor].usedHeight + h <= availableHeight) {
-              const col = currentPage.columns[colCursor];
-              col.snippets.push({
-                snippetId: snippet.snippetId,
-                size: snippet.size,
-                position: { x: 0, y: 0 },
-                rotation: snippet.rotation,
-              });
-              col.usedHeight += h;
-              col.maxWidth = Math.max(col.maxWidth, w);
+          const colOrder = isVertical
+            ? Array.from({ length: maxCols }, (_, i) => maxCols - 1 - i)
+            : Array.from({ length: maxCols }, (_, i) => i);
+          for (const ci of colOrder) {
+            if (currentPage.columns[ci].usedHeight + h <= availableHeight) {
+              addToCol(currentPage.columns[ci], snippet);
               placed = true;
-
-              // 次の列へ（行優先）
-              if (isVertical) {
-                colCursor--;
-                if (colCursor < 0) colCursor = maxCols - 1;
-              } else {
-                colCursor++;
-                if (colCursor >= maxCols) colCursor = 0;
-              }
+              break;
             }
           }
+          if (placed) continue;
 
-          if (!placed) {
-            // 新ページ
-            pages.push(createPage());
-            currentPageIdx = pages.length - 1;
-            colCursor = isVertical ? maxCols - 1 : 0;
-
-            const col = pages[currentPageIdx].columns[colCursor];
-            col.snippets.push({
-              snippetId: snippet.snippetId,
-              size: snippet.size,
-              position: { x: 0, y: 0 },
-              rotation: snippet.rotation,
-            });
-            col.usedHeight += h;
-            col.maxWidth = Math.max(col.maxWidth, w);
-
-            if (isVertical) {
-              colCursor--;
-              if (colCursor < 0) colCursor = maxCols - 1;
-            } else {
-              colCursor++;
-              if (colCursor >= maxCols) colCursor = 0;
-            }
-          }
+          // 現在ページに入らない → 新ページ
+          pages.push(createPage());
+          currentPageIdx = pages.length - 1;
+          colCursor = isVertical ? maxCols - 1 : 0;
+          addToCol(pages[currentPageIdx].columns[colCursor], snippet);
+          advanceCursor();
         }
 
         // Phase 2: 各ページのX,Y座標を計算（隙間なし）
