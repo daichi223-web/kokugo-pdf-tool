@@ -556,11 +556,18 @@ export const useAppStore = create<Store>()(
       },
 
       removeLayoutPage: (pageId: string) => {
-        set((state) => ({
-          layoutPages: state.layoutPages.filter((p) => p.id !== pageId),
-          activeLayoutPageId:
-            state.activeLayoutPageId === pageId ? null : state.activeLayoutPageId,
-        }));
+        // Undo用に履歴を保存（ページ削除は破壊的操作。K-05）
+        get().pushLayoutHistory();
+        set((state) => {
+          const index = state.layoutPages.findIndex((p) => p.id === pageId);
+          const remaining = state.layoutPages.filter((p) => p.id !== pageId);
+          // 削除ページがアクティブだった場合は近傍ページへ移す
+          const nextActive =
+            state.activeLayoutPageId === pageId
+              ? (remaining[Math.min(index, remaining.length - 1)]?.id ?? null)
+              : state.activeLayoutPageId;
+          return { layoutPages: remaining, activeLayoutPageId: nextActive };
+        });
       },
 
       // 全ページの配置をクリア（スニペット自体は残す）
@@ -985,10 +992,16 @@ export const useAppStore = create<Store>()(
         const newHistory = [...layoutHistory];
         const previousState = newHistory.pop();
         if (previousState) {
-          set({
+          set((state) => ({
             layoutPages: previousState,
             layoutHistory: newHistory,
-          });
+            // 復元後のページ群にアクティブIDが存在しない場合は先頭ページへ
+            activeLayoutPageId: previousState.some(
+              (p: LayoutPage) => p.id === state.activeLayoutPageId
+            )
+              ? state.activeLayoutPageId
+              : (previousState[0]?.id ?? null),
+          }));
         }
       },
 

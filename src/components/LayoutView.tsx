@@ -253,6 +253,26 @@ export function LayoutView() {
     }
   }, [mode, cropImageSize, calculateCropFitZoom]);
 
+  // ページ削除（K-05: 配置があるページは確認してから削除。履歴はストア側で push 済み＝Ctrl+Z で戻せる）
+  const handleRemovePage = useCallback(
+    (page: (typeof layoutPages)[number], index: number) => {
+      const contentCount =
+        page.snippets.length +
+        (page.textElements?.length ?? 0) +
+        (page.shapeElements?.length ?? 0);
+      if (
+        contentCount > 0 &&
+        !window.confirm(
+          `ページ${index + 1}を削除しますか？（配置 ${contentCount} 件・Ctrl+Z で戻せます）`
+        )
+      ) {
+        return;
+      }
+      removeLayoutPage(page.id);
+    },
+    [removeLayoutPage]
+  );
+
   // Ctrl+Z で Undo（リスナーはここで一元登録。K-04: LayoutCanvas 各インスタンス登録だと連続表示で多重発火する）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1203,7 +1223,7 @@ export function LayoutView() {
                             className="ml-1 p-0.5 hover:bg-red-200 rounded"
                             onClick={(e) => {
                               e.stopPropagation();
-                              removeLayoutPage(page.id);
+                              handleRemovePage(page, index);
                             }}
                             aria-label={`ページ${index + 1}を削除`}
                           >
@@ -1253,7 +1273,7 @@ export function LayoutView() {
                               className="p-0.5 hover:bg-red-100 rounded text-red-500"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                removeLayoutPage(page.id);
+                                handleRemovePage(page, index);
                               }}
                               title="ページを削除"
                             >
