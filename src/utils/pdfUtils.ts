@@ -6,10 +6,11 @@
 // =============================================================================
 
 import * as pdfjsLib from 'pdfjs-dist';
+// K-25: worker はビルドに同梱（従来は CDN 取得で、CDN 不通だと PDF 読み込み自体が失敗した）
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { ImageEnhancement, CropArea } from '../types';
 
-// PDF.jsのワーカー設定（jsdelivrはCORS対応）
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 /**
  * 取り込み時のデフォルト補正（addFiles と出力時再レンダリングで共通利用）
