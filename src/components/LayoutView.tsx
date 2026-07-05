@@ -169,6 +169,8 @@ export function LayoutView() {
   const [pendingTemplate, setPendingTemplate] = useState<CropTemplate | null>(null);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showRepackConfirm, setShowRepackConfirm] = useState(false); // 全体詰め確認ダイアログ
+  const [undoToast, setUndoToast] = useState<string | null>(null); // Undo案内トースト
 
   const layoutContainerRef = useRef<HTMLDivElement>(null);
   const [cropImageSize, setCropImageSize] = useState<{ width: number; height: number } | null>(null);
@@ -627,7 +629,8 @@ export function LayoutView() {
             (e?.textDarkness ?? 1.0) !== 1.0 ||
             (e?.contrast ?? 1.0) !== 1.0 ||
             (e?.brightness ?? 1.0) !== 1.0 ||
-            e?.autoLevels || e?.unsharpMask || e?.grayscale;
+            e?.autoLevels || e?.unsharpMask || e?.grayscale ||
+            e?.sigmoidContrast || e?.textBolden;
           return (
             <button
               className={`px-3 py-1.5 text-sm rounded font-medium ${
@@ -772,10 +775,13 @@ export function LayoutView() {
                 className="px-3 py-1 text-xs bg-purple-500 text-white rounded font-bold hover:bg-purple-600"
                 onClick={() => {
                   if (arrangeScope === 'all') {
-                    const { cols, rows } = REPACK_GRIDS[settings.gridPattern];
-                    repackAcrossPages(cols, rows);
+                    // 全体詰めは全ページ再構成のため確認ダイアログを表示
+                    setShowRepackConfirm(true);
                   } else {
                     repackAllSnippets(activeLayout.id);
+                    // Undo案内トースト
+                    setUndoToast('ページ内を詰め直しました（Ctrl+Z で元に戻せます）');
+                    setTimeout(() => setUndoToast(null), 3000);
                   }
                 }}
                 title={`${settings.writingDirection === 'vertical' ? '右上' : '左上'}基準で詰める（${settings.writingDirection === 'vertical' ? '縦書き' : '横書き'}）`}
@@ -1281,6 +1287,73 @@ export function LayoutView() {
         </div>
       </div>
 
+      {/* 全体詰め確認ダイアログ */}
+      {showRepackConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-3">全ページを詰め直しますか？</h3>
+            <div className="text-sm text-gray-600 space-y-2 mb-4">
+              <p>この操作を実行すると以下の変更が行われます：</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-500">
+                <li>全ページのスニペットが再配置されます</li>
+                <li>手動で移動したスニペットの位置がリセットされます</li>
+                <li>テキスト・図形要素は削除されます</li>
+                <li>空ページは削除、必要に応じて新ページが作成されます</li>
+              </ul>
+            </div>
+            <div className="flex items-center gap-2 p-2 bg-blue-50 rounded text-xs text-blue-700 mb-4">
+              <span className="font-bold">Tip:</span>
+              <span>実行後に <kbd className="px-1 py-0.5 bg-blue-100 rounded font-mono">Ctrl+Z</kbd> で元に戻せます</span>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 text-sm bg-gray-200 rounded hover:bg-gray-300"
+                onClick={() => setShowRepackConfirm(false)}
+              >
+                キャンセル
+              </button>
+              <button
+                className="px-4 py-2 text-sm bg-purple-500 text-white rounded font-bold hover:bg-purple-600"
+                onClick={() => {
+                  const { cols, rows } = REPACK_GRIDS[settings.gridPattern];
+                  repackAcrossPages(cols, rows);
+                  setShowRepackConfirm(false);
+                  // Undo案内トースト
+                  setUndoToast('全ページを詰め直しました（Ctrl+Z で元に戻せます）');
+                  setTimeout(() => setUndoToast(null), 4000);
+                }}
+              >
+                実行する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Undo案内トースト */}
+      {undoToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+          <div className="flex items-center gap-3 px-4 py-3 bg-gray-800 text-white rounded-lg shadow-lg text-sm">
+            <span>{undoToast}</span>
+            <button
+              className="px-2 py-1 bg-gray-600 rounded hover:bg-gray-500 text-xs font-bold"
+              onClick={() => {
+                useAppStore.getState().undoLayout();
+                setUndoToast(null);
+              }}
+            >
+              元に戻す
+            </button>
+            <button
+              className="text-gray-400 hover:text-white"
+              onClick={() => setUndoToast(null)}
+            >
+              x
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 補正設定モーダル */}
       {showEnhancementPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
@@ -1303,7 +1376,7 @@ export function LayoutView() {
                   {/* スライダー */}
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm w-16">文字濃さ</span>
+                      <span className="text-sm w-20">文字濃さ</span>
                       <input type="range" min="0.3" max="1.5" step="0.1"
                         value={e?.textDarkness ?? 1.0}
                         onChange={(ev) => updateSettings({ imageEnhancement: { ...e, textDarkness: parseFloat(ev.target.value) }})}
@@ -1314,7 +1387,18 @@ export function LayoutView() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm w-16">明るさ</span>
+                      <span className="text-sm w-20">コントラスト</span>
+                      <input type="range" min="0.5" max="2.0" step="0.1"
+                        value={e?.contrast ?? 1.0}
+                        onChange={(ev) => updateSettings({ imageEnhancement: { ...e, contrast: parseFloat(ev.target.value) }})}
+                        className="w-24"
+                      />
+                      <span className={`text-sm w-8 ${(e?.contrast ?? 1.0) !== 1.0 ? 'font-bold text-green-600' : ''}`}>
+                        {e?.contrast?.toFixed(1) ?? '1.0'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm w-20">明るさ</span>
                       <input type="range" min="0.5" max="1.5" step="0.05"
                         value={e?.brightness ?? 1.0}
                         onChange={(ev) => updateSettings({ imageEnhancement: { ...e, brightness: parseFloat(ev.target.value) }})}
@@ -1326,15 +1410,25 @@ export function LayoutView() {
                     </div>
                   </div>
                   {/* トグルボタン */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button className={`px-3 py-1 text-sm rounded ${e?.autoLevels ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => updateSettings({ imageEnhancement: { ...e, autoLevels: !e?.autoLevels }})}>自動レベル</button>
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, autoLevels: !e?.autoLevels }})}
+                      title="ヒストグラム正規化（白を白に、黒を黒に）">自動レベル</button>
+                    <button className={`px-3 py-1 text-sm rounded ${e?.sigmoidContrast ? 'bg-orange-500 text-white' : 'bg-gray-200'}`}
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, sigmoidContrast: !e?.sigmoidContrast }})}
+                      title="S字カーブで文字と背景を強力に分離（白飛び・黒つぶれしにくい）">S字コントラスト</button>
+                    <button className={`px-3 py-1 text-sm rounded ${e?.textBolden ? 'bg-red-500 text-white' : 'bg-gray-200'}`}
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, textBolden: !e?.textBolden }})}
+                      title="文字線を物理的に太くする（モルフォロジー膨張）">文字太らせ</button>
                     <button className={`px-3 py-1 text-sm rounded ${e?.unsharpMask ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => updateSettings({ imageEnhancement: { ...e, unsharpMask: !e?.unsharpMask }})}>鮮明化</button>
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, unsharpMask: !e?.unsharpMask }})}
+                      title="エッジ強調（文字の輪郭をシャープに）">鮮明化</button>
                     <button className={`px-3 py-1 text-sm rounded ${e?.grayscale ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
-                      onClick={() => updateSettings({ imageEnhancement: { ...e, grayscale: !e?.grayscale }})}>グレースケール</button>
+                      onClick={() => updateSettings({ imageEnhancement: { ...e, grayscale: !e?.grayscale }})}
+                      title="カラーをグレースケールに変換">グレースケール</button>
+                    <span className="w-px h-6 bg-gray-300" />
                     <button className="px-3 py-1 text-sm bg-gray-300 rounded hover:bg-gray-400"
-                      onClick={() => updateSettings({ imageEnhancement: { contrast: 1.0, brightness: 1.0, textDarkness: 1.0, sharpness: false, autoLevels: false, unsharpMask: false, grayscale: false }})}>リセット</button>
+                      onClick={() => updateSettings({ imageEnhancement: { contrast: 1.0, brightness: 1.0, textDarkness: 1.0, sharpness: false, autoLevels: false, unsharpMask: false, grayscale: false, sigmoidContrast: false, textBolden: false }})}>リセット</button>
                   </div>
                 </div>
               );

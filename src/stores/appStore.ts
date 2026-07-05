@@ -55,6 +55,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     autoLevels: false, // オートレベル（デフォルトOFF）
     unsharpMask: false, // アンシャープマスク（デフォルトOFF）
     grayscale: false,  // グレースケール（デフォルトOFF）
+    sigmoidContrast: false, // S字コントラスト（デフォルトOFF）
+    textBolden: false,     // 文字太らせ（デフォルトOFF）
   },
   layoutAnchor: 'right-top', // デフォルトは右上（縦書き用）
   showSnippetBorder: false, // スニペット縁取り（デフォルトOFF）
@@ -143,12 +145,14 @@ export const useAppStore = create<Store>()(
               // 取り込み時のデフォルト補正
               const importEnhancement = {
                 contrast: 1.0,
-                brightness: 1.1,      // 少し明るく
-                textDarkness: 0.8,    // 文字を濃く
+                brightness: 1.05,     // 背景を少し明るく
+                textDarkness: 0.6,    // 文字をしっかり濃く（ガンマ0.6）
                 sharpness: false,
-                autoLevels: true,     // 白を白に、黒を黒に
-                unsharpMask: false,
-                grayscale: false,
+                autoLevels: true,     // 白を白に、黒を黒に（正規化を最初に）
+                unsharpMask: true,    // エッジ強調（文字の輪郭をシャープに）
+                grayscale: true,      // グレースケール化（処理効率向上）
+                sigmoidContrast: false, // S字コントラストは出力時に適用
+                textBolden: false,     // 文字太らせは出力時に適用
               };
               const imageData = await renderPageToImage(
                 pdfData.pdf,
@@ -1402,7 +1406,7 @@ export const useAppStore = create<Store>()(
       // - 収まらないなら次のセルへ (Condition B: Overflow)
       // - サイズは変更しない、位置のみ変更
       repackAllSnippets: (pageId: string) => {
-        const { layoutPages, snippets: allSnippets, settings } = get();
+        const { layoutPages, settings } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || page.snippets.length === 0) return;
 
@@ -1422,17 +1426,8 @@ export const useAppStore = create<Store>()(
         const [maxColsStr] = settings.gridPattern.split('x');
         const maxCols = parseInt(maxColsStr, 10) || 4;
 
-        // 元PDFのページ番号順でソート
-        const snippetPageOrder = new Map<string, number>();
-        allSnippets.forEach((s) => {
-          snippetPageOrder.set(s.id, s.sourcePageNumber);
-        });
-
-        const snippetsToPlace = [...page.snippets].sort((a, b) => {
-          const pageA = snippetPageOrder.get(a.snippetId) ?? 0;
-          const pageB = snippetPageOrder.get(b.snippetId) ?? 0;
-          return pageA - pageB;
-        });
+        // ページ内の配列順をそのまま使う（ユーザーの並び順を尊重）
+        const snippetsToPlace = [...page.snippets];
 
         const isVertical = settings.writingDirection === 'vertical';
 
@@ -1455,61 +1450,94 @@ export const useAppStore = create<Store>()(
           const h = snippet.size.height;
 
           // 現在の列に高さが収まるかチェック
-          if (columns[colCursor].usedHeight + h > availableHeight && columns[colCursor].usedHeight > 0) {
-            // この列は満杯 → ページ内に入れない（overflow）
+          if (columns[colCursor].usedHeight + h <= availableHeight || columns[colCursor].usedHeight === 0) {
+            // カーソル列に入る
+            columns[colCursor].snippetIds.push(snippet.snippetId);
+            columns[colCursor].sizes.push({ width: w, height: h });
+            columns[colCursor].maxWidth = Math.max(columns[colCursor].maxWidth, w);
+            columns[colCursor].usedHeight += h;
+
+            // 次の列へ（行優先）
+            if (isVertical) {
+              colCursor--;
+              if (colCursor < 0) colCursor = maxCols - 1;
+            } else {
+              colCursor++;
+              if (colCursor >= maxCols) colCursor = 0;
+            }
             return;
           }
 
-          columns[colCursor].snippetIds.push(snippet.snippetId);
-          columns[colCursor].sizes.push({ width: w, height: h });
-          columns[colCursor].maxWidth = Math.max(columns[colCursor].maxWidth, w);
-          columns[colCursor].usedHeight += h;
-
-          // 次の列へ（行優先）
-          if (isVertical) {
-            colCursor--;
-            if (colCursor < 0) colCursor = maxCols - 1; // 右端に戻る（次の行）
-          } else {
-            colCursor++;
-            if (colCursor >= maxCols) colCursor = 0; // 左端に戻る（次の行）
+          // カーソル列が満杯 → 他の列を行優先順で探す
+          const colOrder = isVertical
+            ? Array.from({ length: maxCols }, (_, i) => maxCols - 1 - i)
+            : Array.from({ length: maxCols }, (_, i) => i);
+          for (const ci of colOrder) {
+            if (columns[ci].usedHeight + h <= availableHeight) {
+              columns[ci].snippetIds.push(snippet.snippetId);
+              columns[ci].sizes.push({ width: w, height: h });
+              columns[ci].maxWidth = Math.max(columns[ci].maxWidth, w);
+              columns[ci].usedHeight += h;
+              // フォールバック先の次にカーソルを移動
+              colCursor = ci;
+              if (isVertical) {
+                colCursor--;
+                if (colCursor < 0) colCursor = maxCols - 1;
+              } else {
+                colCursor++;
+                if (colCursor >= maxCols) colCursor = 0;
+              }
+              return;
+            }
           }
+          // 全列満杯 → このスニペットはスキップ（配置されない）
         });
 
         // X座標を計算（隙間なし）
         const positionMap = new Map<string, { x: number; y: number }>();
 
+        // 使用列の合計幅を計算（はみ出し防止用）
+        const totalColWidth = columns.reduce((sum, col) =>
+          sum + (col.snippetIds.length > 0 ? col.maxWidth : 0), 0);
+
         if (isVertical) {
           // 縦書き: 右端から左へ詰める
           // columns[maxCols-1]が右端の列（スニペット1,3,...）
+          const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
           let cursorX = availableWidth;
           for (let ci = maxCols - 1; ci >= 0; ci--) {
             const col = columns[ci];
             if (col.snippetIds.length === 0) continue;
-            cursorX -= col.maxWidth;
+            const effectiveColWidth = col.maxWidth * scale;
+            cursorX -= effectiveColWidth;
+            const clampedX = Math.max(0, cursorX);
             let cursorY = 0;
             for (let i = 0; i < col.snippetIds.length; i++) {
-              const x = cursorX + (col.maxWidth - col.sizes[i].width); // 列内右寄せ
-              positionMap.set(col.snippetIds[i], { x, y: cursorY });
+              const snippetWidth = col.sizes[i].width * scale;
+              const x = clampedX + (effectiveColWidth - snippetWidth); // 列内右寄せ
+              positionMap.set(col.snippetIds[i], { x: Math.max(0, x), y: cursorY });
               cursorY += col.sizes[i].height;
             }
           }
         } else {
           // 横書き: 左端から右へ詰める
           // columns[0]が左端の列（スニペット1,3,...）
+          const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
           let cursorX = 0;
           for (let ci = 0; ci < maxCols; ci++) {
             const col = columns[ci];
             if (col.snippetIds.length === 0) continue;
+            const effectiveColWidth = col.maxWidth * scale;
             let cursorY = 0;
             for (let i = 0; i < col.snippetIds.length; i++) {
               positionMap.set(col.snippetIds[i], { x: cursorX, y: cursorY });
               cursorY += col.sizes[i].height;
             }
-            cursorX += col.maxWidth;
+            cursorX += effectiveColWidth;
           }
         }
 
-        // 位置のみ更新（サイズは変更しない）
+        // 位置のみ更新（サイズは変更しない — scaleが1未満の場合もサイズは維持）
         set((state) => ({
           layoutPages: state.layoutPages.map((p) =>
             p.id === pageId
@@ -1559,45 +1587,41 @@ export const useAppStore = create<Store>()(
           });
         });
 
-        // 全スニペットを対象にする（配置済み＋未配置）
+        // ページ順にスニペットを収集（各ページ内は配列順を維持＝ユーザーの並び順を尊重）
         const allTargetSnippets: { snippetId: string; size: Size; rotation: number }[] = [];
+        const collectedIds = new Set<string>();
         const firstPlaced = placedSizeMap.size > 0 ? [...placedSizeMap.values()][0] : null;
 
-        allSnippets.forEach((snippet) => {
-          const placed = placedSizeMap.get(snippet.id);
-          if (placed) {
-            // 配置済み: 既存のサイズを使用
-            allTargetSnippets.push({ snippetId: snippet.id, size: placed.size, rotation: placed.rotation });
-          } else {
-            // 未配置: cropAreaからサイズ算出、既存スニペットに揃える
-            const cropZoom = snippet.cropZoom || 1;
-            let size = {
-              width: snippet.cropArea.width * cropZoom,
-              height: snippet.cropArea.height * cropZoom,
-            };
-            if (firstPlaced) {
-              if (isVertical) {
-                const aspectRatio = size.width / size.height;
-                size = { width: firstPlaced.size.height * aspectRatio, height: firstPlaced.size.height };
-              } else {
-                const aspectRatio = size.height / size.width;
-                size = { width: firstPlaced.size.width, height: firstPlaced.size.width * aspectRatio };
-              }
-            }
-            allTargetSnippets.push({ snippetId: snippet.id, size, rotation: 0 });
+        for (const page of layoutPages) {
+          for (const ps of page.snippets) {
+            if (collectedIds.has(ps.snippetId)) continue;
+            collectedIds.add(ps.snippetId);
+            allTargetSnippets.push({ snippetId: ps.snippetId, size: ps.size, rotation: ps.rotation });
           }
+        }
+
+        // 未配置スニペットを末尾に追加
+        allSnippets.forEach((snippet) => {
+          if (collectedIds.has(snippet.id)) return;
+          collectedIds.add(snippet.id);
+          const cropZoom = snippet.cropZoom || 1;
+          let size = {
+            width: snippet.cropArea.width * cropZoom,
+            height: snippet.cropArea.height * cropZoom,
+          };
+          if (firstPlaced) {
+            if (isVertical) {
+              const aspectRatio = size.width / size.height;
+              size = { width: firstPlaced.size.height * aspectRatio, height: firstPlaced.size.height };
+            } else {
+              const aspectRatio = size.height / size.width;
+              size = { width: firstPlaced.size.width, height: firstPlaced.size.width * aspectRatio };
+            }
+          }
+          allTargetSnippets.push({ snippetId: snippet.id, size, rotation: 0 });
         });
 
         if (allTargetSnippets.length === 0) return;
-
-        // 元PDFのページ番号順でソート
-        allTargetSnippets.sort((a, b) => {
-          const snippetA = snippetMap.get(a.snippetId);
-          const snippetB = snippetMap.get(b.snippetId);
-          const pageA = snippetA?.sourcePageNumber ?? 0;
-          const pageB = snippetB?.sourcePageNumber ?? 0;
-          return pageA - pageB;
-        });
 
         // 用紙設定
         const paperSize = getPaperDimensions(basePaperSize, baseOrientation);
@@ -1678,6 +1702,9 @@ export const useAppStore = create<Store>()(
           for (const ci of colOrder) {
             if (currentPage.columns[ci].usedHeight + h <= availableHeight) {
               addToCol(currentPage.columns[ci], snippet);
+              // フォールバック先の列の次にカーソルを移動（読み順を維持）
+              colCursor = ci;
+              advanceCursor();
               placed = true;
               break;
             }
@@ -1699,34 +1726,55 @@ export const useAppStore = create<Store>()(
           if (page.columns.length === 0) continue;
           const result: PlacedSnippet[] = [];
 
+          // 使用列の合計幅を計算（はみ出し防止用）
+          const totalColWidth = page.columns.reduce((sum, col) =>
+            sum + (col.snippets.length > 0 ? col.maxWidth : 0), 0);
+
           if (isVertical) {
             // 縦書き: 右端から左へ詰める
             // columns[maxCols-1]が右端の列（スニペット1,3,...）
+            // 合計幅がavailableWidthを超える場合は列幅を縮小スケール
+            const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
             let cursorX = availableWidth;
             for (let ci = maxCols - 1; ci >= 0; ci--) {
               const col = page.columns[ci];
               if (col.snippets.length === 0) continue;
-              cursorX -= col.maxWidth;
+              const effectiveColWidth = col.maxWidth * scale;
+              cursorX -= effectiveColWidth;
+              // 負座標にならないようクランプ
+              const clampedX = Math.max(0, cursorX);
               let cursorY = 0;
               for (const placed of col.snippets) {
-                const x = cursorX + (col.maxWidth - placed.size.width); // 列内右寄せ
-                result.push({ ...placed, position: { x, y: cursorY } });
+                const snippetWidth = placed.size.width * scale;
+                const x = clampedX + (effectiveColWidth - snippetWidth); // 列内右寄せ
+                result.push({
+                  ...placed,
+                  position: { x: Math.max(0, x), y: cursorY },
+                  ...(scale < 1 ? { size: { width: snippetWidth, height: placed.size.height } } : {}),
+                });
                 cursorY += placed.size.height;
               }
             }
           } else {
             // 横書き: 左端から右へ詰める
             // columns[0]が左端の列（スニペット1,3,...）
+            const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
             let cursorX = 0;
             for (let ci = 0; ci < maxCols; ci++) {
               const col = page.columns[ci];
               if (col.snippets.length === 0) continue;
+              const effectiveColWidth = col.maxWidth * scale;
               let cursorY = 0;
               for (const placed of col.snippets) {
-                result.push({ ...placed, position: { x: cursorX, y: cursorY } });
+                const snippetWidth = placed.size.width * scale;
+                result.push({
+                  ...placed,
+                  position: { x: cursorX, y: cursorY },
+                  ...(scale < 1 ? { size: { width: snippetWidth, height: placed.size.height } } : {}),
+                });
                 cursorY += placed.size.height;
               }
-              cursorX += col.maxWidth;
+              cursorX += effectiveColWidth;
             }
           }
 

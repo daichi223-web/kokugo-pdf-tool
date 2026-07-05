@@ -327,7 +327,9 @@ async function processImageForPdf(
           enhancement.brightness !== 1.0 ||
           enhancement.autoLevels ||
           enhancement.unsharpMask ||
-          enhancement.grayscale;
+          enhancement.grayscale ||
+          enhancement.sigmoidContrast ||
+          enhancement.textBolden;
         if (needsEnhancement) {
           finalCanvas = applyImageEnhancement(canvas, enhancement);
         }
@@ -628,7 +630,9 @@ export async function printLayoutDirectly(
           enhancement.brightness !== 1.0 ||
           enhancement.autoLevels ||
           enhancement.unsharpMask ||
-          enhancement.grayscale;
+          enhancement.grayscale ||
+          enhancement.sigmoidContrast ||
+          enhancement.textBolden;
         if (needsEnhancement) {
           // Canvasで補正を適用
           const tempImg = new Image();

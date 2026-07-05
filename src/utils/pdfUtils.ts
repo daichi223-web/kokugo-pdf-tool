@@ -42,8 +42,10 @@ function applyAutoLevels(imageData: ImageData): void {
 /**
  * アンシャープマスク（エッジ強調）
  * 文字のエッジをシャープにする
+ * @param amount 強調量（0.5〜1.5）
+ * @param threshold 閾値（0〜10）。差分がこの値以下のピクセルは無視（紙テクスチャ・ノイズ除去）
  */
-function applyUnsharpMask(imageData: ImageData, amount: number = 0.5): void {
+function applyUnsharpMask(imageData: ImageData, amount: number = 0.5, threshold: number = 3): void {
   const data = imageData.data;
   const width = imageData.width;
   const height = imageData.height;
@@ -67,9 +69,11 @@ function applyUnsharpMask(imageData: ImageData, amount: number = 0.5): void {
           original[((y + 1) * width + (x + 1)) * 4 + c]
         ) / 9;
 
-        // 差分を強調
+        // 差分を強調（threshold以下の差分はスキップ → ノイズ除去）
         const diff = original[idx + c] - blur;
-        data[idx + c] = Math.min(255, Math.max(0, original[idx + c] + diff * amount));
+        if (Math.abs(diff) > threshold) {
+          data[idx + c] = Math.min(255, Math.max(0, original[idx + c] + diff * amount));
+        }
       }
     }
   }
@@ -85,6 +89,65 @@ function applyGrayscale(imageData: ImageData): void {
     data[i] = gray;
     data[i + 1] = gray;
     data[i + 2] = gray;
+  }
+}
+
+/**
+ * シグモイド（S字カーブ）コントラスト
+ * 中間調を強力に分離し、文字と背景のコントラストを上げる
+ * 通常のコントラストと違い、白飛び・黒つぶれしにくい
+ * @param midpoint カーブの中心（0.4〜0.5、低いほど暗い部分を濃く）
+ * @param gain カーブの急峻さ（6〜14、高いほど白黒に近づく）
+ */
+function applySigmoidContrast(imageData: ImageData, midpoint: number = 0.45, gain: number = 10): void {
+  const data = imageData.data;
+
+  // LUTを作成（高速化）
+  const sigLUT = new Uint8Array(256);
+  const sigMin = 1 / (1 + Math.exp(-gain * (0 - midpoint)));
+  const sigMax = 1 / (1 + Math.exp(-gain * (1 - midpoint)));
+  const sigRange = sigMax - sigMin;
+
+  for (let i = 0; i < 256; i++) {
+    const x = i / 255;
+    const sig = 1 / (1 + Math.exp(-gain * (x - midpoint)));
+    sigLUT[i] = Math.min(255, Math.max(0, Math.round(255 * (sig - sigMin) / sigRange)));
+  }
+
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = sigLUT[data[i]];
+    data[i + 1] = sigLUT[data[i + 1]];
+    data[i + 2] = sigLUT[data[i + 2]];
+  }
+}
+
+/**
+ * モルフォロジー膨張（文字を太らせる）
+ * 十字型カーネルで暗いピクセルを周囲に広げる
+ * 文字線を物理的に太くする唯一の手法
+ * フル3x3だと漢字の画が潰れるため、十字型（N,S,E,W,Center）を使用
+ */
+function applyMorphologicalDilation(imageData: ImageData): void {
+  const data = imageData.data;
+  const width = imageData.width;
+  const height = imageData.height;
+  const original = new Uint8ClampedArray(data);
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = (y * width + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        // 十字型カーネル: center, N, S, E, W の最小値（最も暗い値）を取る
+        const min = Math.min(
+          original[idx + c],                          // center
+          original[((y - 1) * width + x) * 4 + c],   // north
+          original[((y + 1) * width + x) * 4 + c],   // south
+          original[(y * width + (x - 1)) * 4 + c],   // west
+          original[(y * width + (x + 1)) * 4 + c]    // east
+        );
+        data[idx + c] = min;
+      }
+    }
   }
 }
 
@@ -114,7 +177,14 @@ function applyGammaCorrection(imageData: ImageData, gamma: number): void {
 
 /**
  * 画像補正を適用
- * コントラスト・明るさ・シャープ化・オートレベル・アンシャープマスク・グレースケール
+ * 処理順序（調査に基づく最適順序）:
+ *   1. CSS filter: コントラスト・明るさ
+ *   2. グレースケール変換
+ *   3. オートレベル（ヒストグラム正規化）
+ *   4. ガンマ補正（文字を濃く）
+ *   5. シグモイドコントラスト（文字と背景を強力に分離）
+ *   6. モルフォロジー膨張（文字を物理的に太く）
+ *   7. アンシャープマスク（エッジ強調、必ず最後）
  */
 export function applyImageEnhancement(
   canvas: HTMLCanvasElement,
@@ -131,7 +201,9 @@ export function applyImageEnhancement(
     enhancement.sharpness ||
     enhancement.autoLevels ||
     enhancement.unsharpMask ||
-    enhancement.grayscale;
+    enhancement.grayscale ||
+    enhancement.sigmoidContrast ||
+    enhancement.textBolden;
 
   if (!needsProcessing) {
     return canvas;
@@ -153,7 +225,7 @@ export function applyImageEnhancement(
     enhancedCtx.imageSmoothingEnabled = false;
   }
 
-  // コントラスト・明るさフィルターを適用
+  // [Step 1] コントラスト・明るさフィルターを適用（CSS filter）
   const filters: string[] = [];
   if (enhancement.contrast !== 1.0) {
     filters.push(`contrast(${enhancement.contrast})`);
@@ -176,29 +248,41 @@ export function applyImageEnhancement(
     enhancement.autoLevels ||
     enhancement.unsharpMask ||
     enhancement.grayscale ||
+    enhancement.sigmoidContrast ||
+    enhancement.textBolden ||
     (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0);
 
   if (needsPixelProcessing) {
     const imageData = enhancedCtx.getImageData(0, 0, enhancedCanvas.width, enhancedCanvas.height);
 
-    // グレースケール変換（最初に実行）
+    // [Step 2] グレースケール変換（最初に実行）
     if (enhancement.grayscale) {
       applyGrayscale(imageData);
     }
 
-    // オートレベル補正
+    // [Step 3] オートレベル補正（正規化してから濃度調整）
     if (enhancement.autoLevels) {
       applyAutoLevels(imageData);
     }
 
-    // ガンマ補正（文字を濃くする）
+    // [Step 4] ガンマ補正（文字を濃くする）
     if (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0) {
       applyGammaCorrection(imageData, enhancement.textDarkness);
     }
 
-    // アンシャープマスク（最後に実行）
+    // [Step 5] シグモイドコントラスト（文字と背景を強力に分離）
+    if (enhancement.sigmoidContrast) {
+      applySigmoidContrast(imageData, 0.45, 10);
+    }
+
+    // [Step 6] モルフォロジー膨張（文字を太くする）
+    if (enhancement.textBolden) {
+      applyMorphologicalDilation(imageData);
+    }
+
+    // [Step 7] アンシャープマスク（エッジ強調、必ず最後）
     if (enhancement.unsharpMask) {
-      applyUnsharpMask(imageData, 0.7); // 強度0.7
+      applyUnsharpMask(imageData, 0.7, 3); // 強度0.7, threshold=3
     }
 
     enhancedCtx.putImageData(imageData, 0, 0);
