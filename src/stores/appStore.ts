@@ -1304,25 +1304,24 @@ export const useAppStore = create<Store>()(
         const contentWidth = paperWidthPx - marginX * 2;
 
         // 現在の配置からグリッド構造を推定
-        const snippets = [...page.snippets].sort((a, b) => {
-          // Y座標でグループ化し、同じ行内ではX座標でソート
-          const rowDiff = Math.round(a.position.y / 50) - Math.round(b.position.y / 50);
-          if (rowDiff !== 0) return rowDiff;
-          return a.position.x - b.position.x;
-        });
+        // K-11: ソート（/50バケット）とグルーピング（±30px）で閾値が食い違い、
+        // 手動ドラッグ後の微妙なズレで行が分裂・混入していた。Y昇順ソート＋単一閾値に統一
+        // （行内のX順は後段の行ごとのソートで整えるため、ここではYのみでよい）
+        const ROW_THRESHOLD = 30;
+        const snippets = [...page.snippets].sort((a, b) => a.position.y - b.position.y);
 
         if (snippets.length === 0) return;
 
-        // 行ごとにグループ化
+        // 行ごとにグループ化（行の先頭Yとの差が閾値以内なら同じ行）
         const rows: typeof snippets[] = [];
         let currentRow: typeof snippets = [];
-        let lastY = snippets[0].position.y;
+        let rowStartY = snippets[0].position.y;
 
         snippets.forEach((s) => {
-          if (Math.abs(s.position.y - lastY) > 30) {
+          if (Math.abs(s.position.y - rowStartY) > ROW_THRESHOLD) {
             if (currentRow.length > 0) rows.push(currentRow);
             currentRow = [s];
-            lastY = s.position.y;
+            rowStartY = s.position.y;
           } else {
             currentRow.push(s);
           }
