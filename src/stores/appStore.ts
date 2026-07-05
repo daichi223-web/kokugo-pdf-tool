@@ -351,7 +351,8 @@ export const useAppStore = create<Store>()(
           const pageNumber = pageNumbers[i];
           const page = file.pages.find((p) => p.pageNumber === pageNumber);
           if (!page) continue;
-          if (page.ocrStatus === 'completed' && page.textContent) continue;
+          // K-18: 明示的に選択されたページは完了済みでも再実行する
+          // （「結果が悪いページを選んでやり直す」が主用途のため。全ページOCR側のスキップは維持）
 
           set({
             progress: {

@@ -461,9 +461,10 @@ export function LayoutView() {
   const generateEnhancementPreview = useCallback(async () => {
     if (snippets.length === 0) return;
 
-    // 最初のスニペットをプレビュー対象に
-    const firstSnippet = snippets[0];
-    const originalImage = firstSnippet.imageData;
+    // 選択中のスニペットを優先し、なければ先頭をプレビュー対象に（K-27）
+    const targetSnippet =
+      snippets.find((s) => s.id === selectedSnippetId) ?? snippets[0];
+    const originalImage = targetSnippet.imageData;
 
     // Canvasに画像を描画して補正を適用
     const img = new Image();
@@ -486,7 +487,7 @@ export function LayoutView() {
       });
     };
     img.src = originalImage;
-  }, [snippets, settings.imageEnhancement]);
+  }, [snippets, selectedSnippetId, settings.imageEnhancement]);
 
   // プレビュー表示時に画像生成
   useEffect(() => {

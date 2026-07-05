@@ -119,7 +119,12 @@ export function PageThumbnails({ file, multiSelectMode = false }: PageThumbnails
             <div
               key={page.pageNumber}
               ref={(el) => {
-                if (el) thumbnailRefs.current.set(page.pageNumber, el);
+                // K-14: アンマウント時(el=null)は必ず削除し、detached DOM への参照リークを防ぐ
+                if (el) {
+                  thumbnailRefs.current.set(page.pageNumber, el);
+                } else {
+                  thumbnailRefs.current.delete(page.pageNumber);
+                }
               }}
               className={`thumbnail relative cursor-pointer ${isActive ? 'active' : ''} ${
                 multiSelectMode && isSelected ? 'ring-2 ring-blue-500' : ''

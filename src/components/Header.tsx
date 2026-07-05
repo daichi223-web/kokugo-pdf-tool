@@ -2,7 +2,7 @@
 // ヘッダーコンポーネント
 // =============================================================================
 
-import { FileText, Layout, Settings } from 'lucide-react';
+import { FileText, Layout } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 
 export function Header() {
@@ -39,10 +39,8 @@ export function Header() {
           </button>
         </nav>
 
-        {/* 設定ボタン */}
-        <button className="toolbar-button" title="設定">
-          <Settings className="w-5 h-5" />
-        </button>
+        {/* 右側スペーサー（タブを中央に保つ） */}
+        <div className="w-9" />
       </div>
     </header>
   );

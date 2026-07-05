@@ -102,7 +102,10 @@ export function SnippetList() {
 
   const handleAddToLayout = (snippetId: string) => {
     if (activeLayoutPageId) {
-      addSnippetToLayout(activeLayoutPageId, snippetId, { x: 10, y: 10 });
+      // K-17: 既存の配置数に応じてカスケードさせ、完全重なりを防ぐ
+      const page = useAppStore.getState().layoutPages.find((p) => p.id === activeLayoutPageId);
+      const offset = ((page?.snippets.length ?? 0) % 10) * 20;
+      addSnippetToLayout(activeLayoutPageId, snippetId, { x: 10 + offset, y: 10 + offset });
     }
   };
 
