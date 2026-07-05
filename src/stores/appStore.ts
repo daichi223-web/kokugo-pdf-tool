@@ -38,6 +38,12 @@ import {
   checkPerformanceRequirements,
   type BenchmarkResult,
 } from '../utils/performanceUtils';
+import {
+  saveFilesSlice,
+  saveSnippetsSlice,
+  saveLayoutSlice,
+  loadWorkState,
+} from '../utils/persistUtils';
 
 const DEFAULT_SETTINGS: AppSettings = {
   rubyBracketMode: true,
@@ -2026,3 +2032,101 @@ export const useAppStore = create<Store>()(
     }
   )
 );
+
+// =============================================================================
+// K-01: 作業状態の自動永続化
+// settings は上の persist(localStorage) が担当。作業データ（files/snippets/layoutPages）
+// は巨大な Base64 画像を含むため IndexedDB へスライス別・デバウンス保存する。
+// =============================================================================
+
+const PERSIST_DEBOUNCE_MS = 1500;
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let lastPersisted: {
+  files: PDFFile[] | null;
+  snippets: Snippet[] | null;
+  layoutPages: LayoutPage[] | null;
+} = { files: null, snippets: null, layoutPages: null };
+
+function persistChangedSlices() {
+  const state = useAppStore.getState();
+  // OCR・読み込み処理中は毎ページ files が更新されるため、完了後にまとめて保存する
+  if (state.isProcessing) return;
+
+  const jobs: Promise<void>[] = [];
+  if (state.files !== lastPersisted.files) {
+    jobs.push(
+      saveFilesSlice({
+        files: state.files,
+        activeFileId: state.activeFileId,
+        activePageNumber: state.activePageNumber,
+      })
+    );
+    lastPersisted.files = state.files;
+  }
+  if (state.snippets !== lastPersisted.snippets) {
+    jobs.push(saveSnippetsSlice({ snippets: state.snippets }));
+    lastPersisted.snippets = state.snippets;
+  }
+  if (state.layoutPages !== lastPersisted.layoutPages) {
+    jobs.push(
+      saveLayoutSlice({
+        layoutPages: state.layoutPages,
+        activeLayoutPageId: state.activeLayoutPageId,
+      })
+    );
+    lastPersisted.layoutPages = state.layoutPages;
+  }
+  if (jobs.length > 0) {
+    Promise.all(jobs).catch((err) => console.error('作業状態の保存に失敗しました:', err));
+  }
+}
+
+if (typeof window !== 'undefined') {
+  useAppStore.subscribe(() => {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(persistChangedSlices, PERSIST_DEBOUNCE_MS);
+  });
+}
+
+/**
+ * 起動時の作業状態復元。App のマウント時に一度だけ呼ぶ。
+ * 現在の状態が空（新規セッション）の場合のみ復元する。
+ * @returns 復元した場合 true
+ */
+export async function restoreWorkState(): Promise<boolean> {
+  const current = useAppStore.getState();
+  if (current.files.length > 0 || current.snippets.length > 0 || current.layoutPages.length > 0) {
+    return false;
+  }
+
+  const saved = await loadWorkState();
+  const hasData =
+    (saved.files?.files.length ?? 0) > 0 ||
+    (saved.snippets?.snippets.length ?? 0) > 0 ||
+    (saved.layout?.layoutPages.length ?? 0) > 0;
+  if (!hasData) return false;
+
+  // 復元分を「既保存」として登録し、直後の再保存を抑止
+  if (saved.files) lastPersisted.files = saved.files.files;
+  if (saved.snippets) lastPersisted.snippets = saved.snippets.snippets;
+  if (saved.layout) lastPersisted.layoutPages = saved.layout.layoutPages;
+
+  useAppStore.setState({
+    ...(saved.files
+      ? {
+          files: saved.files.files,
+          activeFileId: saved.files.activeFileId,
+          activePageNumber: saved.files.activePageNumber,
+        }
+      : {}),
+    ...(saved.snippets ? { snippets: saved.snippets.snippets } : {}),
+    ...(saved.layout
+      ? {
+          layoutPages: saved.layout.layoutPages,
+          activeLayoutPageId: saved.layout.activeLayoutPageId,
+        }
+      : {}),
+  });
+  return true;
+}

@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { useAppStore } from './stores/appStore';
+import { useAppStore, restoreWorkState } from './stores/appStore';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { ExtractView } from './components/ExtractView';
@@ -17,8 +17,13 @@ function App() {
   const { activeTab, isProcessing, progress, files } = useAppStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // 起動時に古いデータをクリーンアップ
+  // 起動時に前回の作業状態を復元（K-01）してから古いデータをクリーンアップ
   useEffect(() => {
+    restoreWorkState()
+      .then((restored) => {
+        if (restored) console.info('前回の作業状態を復元しました');
+      })
+      .catch(console.error);
     cleanupOldData().catch(console.error);
   }, []);
 
