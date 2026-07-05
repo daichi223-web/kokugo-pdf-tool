@@ -1100,8 +1100,9 @@ export const useAppStore = create<Store>()(
         // 1ページあたりの容量
         const capacity = cols * rows;
 
-        // 元PDFのページ番号順でソート
-        const sortedSnippets = [...snippets].sort((a, b) => a.sourcePageNumber - b.sourcePageNumber);
+        // ユーザーの並び順（スニペットリストの配列順）をそのまま使う
+        // （K-09: 従来はページ番号順に再ソートしており、手動の並べ替えが無視されていた。詰め系と方針統一）
+        const sortedSnippets = [...snippets];
 
         // ページごとにスニペットを分配（pageBreakBeforeを考慮）
         const pagesData: PlacedSnippet[][] = [[]];

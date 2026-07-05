@@ -726,7 +726,7 @@ export function LayoutView() {
                   <ChevronLeft className="w-3 h-3 text-indigo-600" />
                 </button>
                 <span className="text-xs w-4 text-center text-indigo-700">{activeLayout.marginX ?? 15}</span>
-                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginX(activeLayout.id, (activeLayout.marginX ?? 15) + 5)}>
+                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginX(activeLayout.id, Math.min(50, (activeLayout.marginX ?? 15) + 5))}>
                   <ChevronRight className="w-3 h-3 text-indigo-600" />
                 </button>
                 <span className="text-indigo-300">/</span>
@@ -734,7 +734,7 @@ export function LayoutView() {
                   <ChevronUp className="w-3 h-3 text-indigo-600" />
                 </button>
                 <span className="text-xs w-4 text-center text-indigo-700">{activeLayout.marginY ?? 15}</span>
-                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginY(activeLayout.id, (activeLayout.marginY ?? 15) + 5)}>
+                <button className="p-0.5 border border-indigo-300 rounded hover:bg-indigo-100" onClick={() => updateLayoutPageMarginY(activeLayout.id, Math.min(50, (activeLayout.marginY ?? 15) + 5))}>
                   <ChevronDown className="w-3 h-3 text-indigo-600" />
                 </button>
               </div>
@@ -1335,6 +1335,7 @@ export function LayoutView() {
                 <li>手動で移動したスニペットの位置がリセットされます</li>
                 <li>テキスト・図形要素は削除されます</li>
                 <li>空ページは削除、必要に応じて新ページが作成されます</li>
+                <li>全ページの用紙サイズ・向き・余白が先頭ページの設定に統一されます</li>
               </ul>
             </div>
             <div className="flex items-center gap-2 p-2 bg-blue-50 rounded text-xs text-blue-700 mb-4">
