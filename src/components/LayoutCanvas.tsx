@@ -372,6 +372,9 @@ export function LayoutCanvas({
 
         newWidth = Math.max(minSize, newWidth);
         newHeight = Math.max(minSize, newHeight);
+        // K-19: クランプ後に固定辺基準で位置を再計算（スニペット側と同じ実装）
+        if (resizingText.handle.includes('w')) newX = rightEdge - newWidth;
+        if (resizingText.handle.includes('n')) newY = bottomEdge - newHeight;
 
         updateTextElement(layoutPage.id, resizingText.textId, {
           position: { x: newX, y: newY },
@@ -449,6 +452,9 @@ export function LayoutCanvas({
 
         newWidth = Math.max(minSize, newWidth);
         newHeight = Math.max(minSize, newHeight);
+        // K-19: クランプ後に固定辺基準で位置を再計算（スニペット側と同じ実装）
+        if (resizingShape.handle.includes('w')) newX = rightEdge - newWidth;
+        if (resizingShape.handle.includes('n')) newY = bottomEdge - newHeight;
 
         updateShapeElement(layoutPage.id, resizingShape.shapeId, {
           position: { x: newX, y: newY },

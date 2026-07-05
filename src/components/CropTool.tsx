@@ -292,7 +292,23 @@ export function CropTool({
 
       // 画像境界にクランプ
       if (imageSize.width > 0 && imageSize.height > 0) {
-        newSelection = clampSelectionToImage(newSelection, imageSize.width, imageSize.height);
+        if (dragMode === 'move') {
+          // 移動はサイズを保ったまま位置をクランプ
+          newSelection = clampSelectionToImage(newSelection, imageSize.width, imageSize.height);
+        } else {
+          // K-20: リサイズ/新規選択は固定辺を動かさず、はみ出た辺だけを境界で切る
+          // （移動用クランプを流用すると、画像端で選択枠全体がジャンプしていた）
+          const x1 = Math.max(0, newSelection.x);
+          const y1 = Math.max(0, newSelection.y);
+          const x2 = Math.min(imageSize.width, newSelection.x + newSelection.width);
+          const y2 = Math.min(imageSize.height, newSelection.y + newSelection.height);
+          newSelection = {
+            x: x1,
+            y: y1,
+            width: Math.max(1, x2 - x1),
+            height: Math.max(1, y2 - y1),
+          };
+        }
       }
 
       setSelection(newSelection);
