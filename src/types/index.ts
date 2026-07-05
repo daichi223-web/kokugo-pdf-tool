@@ -263,13 +263,11 @@ export interface AppActions {
   applySnippetWidthToLayout: (pageId: string, targetWidth: number) => void;
   applySnippetHeightToLayout: (pageId: string, targetHeight: number) => void;
   removeSnippetFromLayout: (pageId: string, snippetId: string) => void;
-  updateLayoutPageMargin: (pageId: string, margin: number) => void;
   updateLayoutPageMarginX: (pageId: string, marginX: number) => void;
   updateLayoutPageMarginY: (pageId: string, marginY: number) => void;
 
   // エクスポート操作
   exportText: (fileId: string, format: ExportFormat) => Promise<void>;
-  exportLayoutPDF: () => Promise<void>;
   copyToClipboard: (text: string) => Promise<void>;
 
   // 設定操作
@@ -291,7 +289,6 @@ export interface AppActions {
   // 配置済みスニペット複数選択操作
   togglePlacedSnippetSelection: (snippetId: string) => void;
   clearPlacedSnippetSelection: () => void;
-  selectAllPlacedSnippets: (pageId: string) => void;
 
   // 配置操作（グリッド配置・整列）
   arrangeAllSnippetsInGrid: (pageId: string, cols: number, rows: number, gapX?: number, gapY?: number) => void;

@@ -117,87 +117,8 @@ export async function terminateOCR(): Promise<void> {
   }
 }
 
-/**
- * テーブル構造を検出してOCR
- * P2-004: 表抽出
- */
-export async function extractTable(imageData: string): Promise<string[][]> {
-  const result = await runOCR(imageData);
-
-  // ブロックを位置情報でグループ化してテーブル構造を推定
-  const blocks = result.blocks;
-  if (blocks.length === 0) return [];
-
-  // Y座標でグループ化（同じ行）
-  const rows: OCRBlock[][] = [];
-  let currentRow: OCRBlock[] = [];
-  let lastY = blocks[0]?.bbox.y0 || 0;
-
-  for (const block of blocks) {
-    const y = block.bbox.y0;
-    if (Math.abs(y - lastY) > 20) {
-      if (currentRow.length > 0) {
-        rows.push([...currentRow]);
-      }
-      currentRow = [block];
-      lastY = y;
-    } else {
-      currentRow.push(block);
-    }
-  }
-  if (currentRow.length > 0) {
-    rows.push(currentRow);
-  }
-
-  // 各行をX座標でソート
-  return rows.map((row) => {
-    const sorted = row.sort((a, b) => a.bbox.x0 - b.bbox.x0);
-    return sorted.map((block) => block.text.trim());
-  });
-}
-
-/**
- * テーブルをMarkdown形式に変換
- */
-export function tableToMarkdown(table: string[][]): string {
-  if (table.length === 0) return '';
-
-  const lines: string[] = [];
-
-  // ヘッダー行
-  if (table[0]) {
-    lines.push('| ' + table[0].join(' | ') + ' |');
-    lines.push('|' + table[0].map(() => '---').join('|') + '|');
-  }
-
-  // データ行
-  for (let i = 1; i < table.length; i++) {
-    if (table[i]) {
-      lines.push('| ' + table[i].join(' | ') + ' |');
-    }
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * ルビ（ふりがな）を検出
- * P2-001: ルビ括弧表記オプション
- */
-export function detectRuby(text: string): { main: string; ruby: string }[] {
-  const rubyPattern = /(.+?)《(.+?)》/g;
-  const matches: { main: string; ruby: string }[] = [];
-
-  let match;
-  while ((match = rubyPattern.exec(text)) !== null) {
-    matches.push({
-      main: match[1],
-      ruby: match[2],
-    });
-  }
-
-  return matches;
-}
+// K-24: extractTable / tableToMarkdown（P2-004・UI導線なし）と detectRuby は
+// 未配線のまま2年近く経過したため削除（要件は requirements-v3.md §3 で「未達→撤回」を記録）
 
 /**
  * テキストにルビを括弧表記で付与
@@ -412,17 +333,6 @@ export function layoutToHTML(layout: VerticalLayout): string {
 
     return `<div class="ocr-horizontal-layout">${rowsHTML}</div>`;
   }
-}
-
-/**
- * 縦書きレイアウトをプレーンテキストとして生成（列ごとに改行）
- */
-export function layoutToText(layout: VerticalLayout): string {
-  if (layout.columns.length === 0) return '';
-
-  return layout.columns.map(column =>
-    column.blocks.map(block => block.text.trim()).join('')
-  ).join('\n');
 }
 
 function escapeHTML(text: string): string {

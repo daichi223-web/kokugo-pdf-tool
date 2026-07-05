@@ -763,17 +763,6 @@ export const useAppStore = create<Store>()(
         }));
       },
 
-      // ページ余白の更新（後方互換用）
-      updateLayoutPageMargin: (pageId: string, margin: number) => {
-        set((state) => ({
-          layoutPages: state.layoutPages.map((page) =>
-            page.id === pageId
-              ? { ...page, margin, marginX: margin, marginY: margin }
-              : page
-          ),
-        }));
-      },
-
       // 左右余白の更新（配置基準点に応じてスニペット位置を補正）
       updateLayoutPageMarginX: (pageId: string, marginX: number) => {
         const { settings } = get();
@@ -877,14 +866,6 @@ export const useAppStore = create<Store>()(
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-      },
-
-      // P3-006: 印刷用PDF出力
-      exportLayoutPDF: async () => {
-        const { layoutPages, snippets, settings } = get();
-        // This would use pdf-lib to create the layout PDF
-        // Implementation in exportUtils
-        console.log('Exporting layout PDF...', { layoutPages, snippets, settings });
       },
 
       // P1-008: クリップボードコピー
@@ -1030,12 +1011,6 @@ export const useAppStore = create<Store>()(
         set({ selectedSnippetIds: [] });
       },
 
-      selectAllPlacedSnippets: (pageId: string) => {
-        const page = get().layoutPages.find((p) => p.id === pageId);
-        if (!page) return;
-        set({ selectedSnippetIds: page.snippets.map((s) => s.snippetId) });
-      },
-
       // グリッド配置
       // 全スニペットをグリッド配置（スニペットリストから一括配置）
       // autoCreatePages: trueの場合、グリッド容量を超えたら自動でページを追加
@@ -1045,15 +1020,6 @@ export const useAppStore = create<Store>()(
         const { layoutPages, snippets, settings } = get();
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || snippets.length === 0) return;
-
-        // デバッグ: スニペット数を表示
-        console.log('[arrangeAllSnippetsInGrid] 開始', {
-          snippetsCount: snippets.length,
-          snippetIds: snippets.map(s => s.id),
-          pageId,
-          cols,
-          rows,
-        });
 
         // Undo用に履歴を保存
         get().pushLayoutHistory();
@@ -1196,12 +1162,6 @@ export const useAppStore = create<Store>()(
         });
 
         // ストアを更新
-        // デバッグ: 配置結果を表示
-        console.log('[arrangeAllSnippetsInGrid] 配置結果', {
-          pagesDataLength: pagesData.length,
-          snippetsPerPage: pagesData.map((p, i) => ({ page: i, count: p.length, ids: p.map(s => s.snippetId) })),
-        });
-
         set((state) => {
           // 既存ページを更新し、新しいページを挿入
           const updatedPages = state.layoutPages.map((p) =>
