@@ -513,6 +513,7 @@ export const useAppStore = create<Store>()(
             ...page,
             snippets: page.snippets.filter((s) => s.snippetId !== snippetId),
           })),
+          selectedSnippetIds: state.selectedSnippetIds.filter((id) => id !== snippetId),
         }));
       },
 
@@ -590,7 +591,8 @@ export const useAppStore = create<Store>()(
       },
 
       setActiveLayoutPage: (pageId: string | null) => {
-        set({ activeLayoutPageId: pageId });
+        // 選択状態はページ非依存のため、ページ切替時に必ずクリアする（開発規約 requirements-v3.md §6-1）
+        set({ activeLayoutPageId: pageId, selectedSnippetIds: [] });
       },
 
       addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => {
@@ -746,6 +748,7 @@ export const useAppStore = create<Store>()(
                 }
               : page
           ),
+          selectedSnippetIds: state.selectedSnippetIds.filter((id) => id !== snippetId),
         }));
       },
 
@@ -1261,9 +1264,6 @@ export const useAppStore = create<Store>()(
         const page = layoutPages.find((p) => p.id === pageId);
         if (!page || selectedSnippetIds.length < 2) return;
 
-        // Undo用に履歴を保存
-        get().pushLayoutHistory();
-
         const selectedPlaced = page.snippets
           .filter((s) => selectedSnippetIds.includes(s.snippetId))
           .sort((a, b) =>
@@ -1271,6 +1271,12 @@ export const useAppStore = create<Store>()(
               ? a.position.x - b.position.x
               : a.position.y - b.position.y
           );
+
+        // 選択IDが現ページに配置されていない場合がある（ページ切替後の残留選択）
+        if (selectedPlaced.length < 2) return;
+
+        // Undo用に履歴を保存
+        get().pushLayoutHistory();
 
         // 最初のスニペットの位置を基準に、隙間なく並べる
         const positionMap = new Map<string, { x: number; y: number }>();
