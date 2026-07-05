@@ -11,11 +11,11 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import type { LayoutPage, Snippet, TextElement, ImageEnhancement, AppSettings } from '../types';
+import type { LayoutPage, Snippet, TextElement, ImageEnhancement, AppSettings, PDFFile } from '../types';
 import { getPaperDimensions } from '../types';
 import { applyRubyBrackets } from './ocrUtils';
-import { mmToPx } from './helpers';
-import { applyImageEnhancement } from './pdfUtils';
+import { mmToPx, createImageFromDataURL } from './helpers';
+import { applyImageEnhancement, loadPDF, renderCropHighRes } from './pdfUtils';
 
 /**
  * テキスト形式でエクスポート
@@ -368,7 +368,8 @@ export async function exportLayoutToPDF(
   snippets: Snippet[],
   quality: PdfQuality = 'high',
   enhancement?: ImageEnhancement,
-  settings?: Partial<AppSettings>
+  settings?: Partial<AppSettings>,
+  files?: PDFFile[]
 ): Promise<Blob> {
   const pdfDoc = await PDFDocument.create();
   const qualitySettings = PDF_QUALITY_PRESETS[quality];
@@ -377,6 +378,49 @@ export async function exportLayoutToPDF(
   const screenDpi = 96;
   const pdfDpi = 72;
   const dpiRatio = pdfDpi / screenDpi;
+
+  // K-31: 出力時高解像度再レンダリングの準備
+  // 元PDFが手元にある場合、切り出し範囲を印刷解像度（目標300dpi）で再レンダリングして埋め込む。
+  // 編集用画像（取り込み時の低解像度ラスタ）を引き伸ばすのではなく元データから作り直すため劣化しない。
+  const TARGET_DPI = 300;
+  const sourcePdfCache = new Map<string, Awaited<ReturnType<typeof loadPDF>> | null>();
+  const pageImageSizeCache = new Map<string, { width: number; height: number } | null>();
+
+  const getSourcePdf = async (fileId: string) => {
+    if (!sourcePdfCache.has(fileId)) {
+      const pdfFile = files?.find((f) => f.id === fileId);
+      if (!pdfFile) {
+        sourcePdfCache.set(fileId, null);
+      } else {
+        try {
+          sourcePdfCache.set(fileId, await loadPDF(pdfFile.file));
+        } catch {
+          sourcePdfCache.set(fileId, null);
+        }
+      }
+    }
+    return sourcePdfCache.get(fileId) ?? null;
+  };
+
+  // cropArea の座標系＝取り込み画像の実寸を得る（ページ単位でキャッシュ）
+  const getPageImageSize = async (fileId: string, pageNumber: number) => {
+    const key = `${fileId}:${pageNumber}`;
+    if (!pageImageSizeCache.has(key)) {
+      const pdfFile = files?.find((f) => f.id === fileId);
+      const imageData = pdfFile?.pages.find((p) => p.pageNumber === pageNumber)?.imageData;
+      if (!imageData) {
+        pageImageSizeCache.set(key, null);
+      } else {
+        try {
+          const img = await createImageFromDataURL(imageData);
+          pageImageSizeCache.set(key, { width: img.naturalWidth, height: img.naturalHeight });
+        } catch {
+          pageImageSizeCache.set(key, null);
+        }
+      }
+    }
+    return pageImageSizeCache.get(key) ?? null;
+  };
 
   for (const layoutPage of layoutPages) {
     const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
@@ -394,8 +438,34 @@ export async function exportLayoutToPDF(
       if (!snippet || !snippet.imageData) continue;
 
       try {
-        // 画像を処理（圧縮・リサイズ）してPDFに埋め込み
-        const processed = await processImageForPdf(snippet.imageData, qualitySettings, enhancement);
+        // K-31: まず元PDFからの高解像度再レンダリングを試みる
+        let imageData = snippet.imageData;
+        let effectiveQuality = qualitySettings;
+        const sourcePdf = await getSourcePdf(snippet.sourceFileId);
+        if (sourcePdf) {
+          const renderedSize = await getPageImageSize(snippet.sourceFileId, snippet.sourcePageNumber);
+          if (renderedSize) {
+            // 配置幅(96dpi px) → 目標dpiでの必要ピクセル幅
+            const targetPixelWidth = Math.round(
+              placedSnippet.size.width * (TARGET_DPI / screenDpi)
+            );
+            const highRes = await renderCropHighRes(
+              sourcePdf.pdf,
+              snippet.sourcePageNumber,
+              snippet.cropArea,
+              renderedSize,
+              targetPixelWidth
+            );
+            if (highRes) {
+              imageData = highRes;
+              // 既に必要解像度で生成済みのため、追加の拡大・JPEG化はしない
+              effectiveQuality = { format: 'png', quality: 1, scale: 1, useOriginalSize: true };
+            }
+          }
+        }
+
+        // 画像を処理（補正適用）してPDFに埋め込み
+        const processed = await processImageForPdf(imageData, effectiveQuality, enhancement);
         const image = processed.isPng
           ? await pdfDoc.embedPng(processed.data)
           : await pdfDoc.embedJpg(processed.data);
@@ -528,6 +598,13 @@ export async function exportLayoutToPDF(
       }
     }
   }
+
+  // 再レンダリング用に開いた元PDFを解放（8GB機対策）
+  for (const cached of sourcePdfCache.values()) {
+    cached?.pdf.destroy().catch(() => undefined);
+  }
+  sourcePdfCache.clear();
+  pageImageSizeCache.clear();
 
   const pdfBytes = await pdfDoc.save();
   return new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });

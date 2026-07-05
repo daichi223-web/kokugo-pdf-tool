@@ -6,10 +6,26 @@
 // =============================================================================
 
 import * as pdfjsLib from 'pdfjs-dist';
-import type { ImageEnhancement } from '../types';
+import type { ImageEnhancement, CropArea } from '../types';
 
 // PDF.jsのワーカー設定（jsdelivrはCORS対応）
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+/**
+ * 取り込み時のデフォルト補正（addFiles と出力時再レンダリングで共通利用）
+ * 変更する場合は両経路の見た目が揃うようここだけを直す
+ */
+export const IMPORT_ENHANCEMENT: ImageEnhancement = {
+  contrast: 1.0,
+  brightness: 1.05, // 背景を少し明るく
+  textDarkness: 0.6, // 文字をしっかり濃く（ガンマ0.6）
+  sharpness: false,
+  autoLevels: true, // 白を白に、黒を黒に（正規化を最初に）
+  unsharpMask: true, // エッジ強調（文字の輪郭をシャープに）
+  grayscale: true, // グレースケール化（処理効率向上）
+  sigmoidContrast: false, // S字コントラストは出力時に適用
+  textBolden: false, // 文字太らせは出力時に適用
+};
 
 /**
  * オートレベル補正（ヒストグラムストレッチ）
@@ -493,6 +509,103 @@ export async function cropPageArea(
   );
 
   return cropCanvas.toDataURL('image/png');
+}
+
+// =============================================================================
+// K-31: 出力時高解像度再レンダリング
+// 編集用の低解像度画像（pdfRenderScale 基準）ではなく、元 PDF から切り出し範囲を
+// 印刷解像度で再レンダリングして出力に使う。編集は軽いまま、印刷は鮮明になる。
+// =============================================================================
+
+// 8GB 機保護のための上限（フルページ一時キャンバスの画素数とスケール）
+const HIGHRES_MAX_SCALE = 8;
+const HIGHRES_MAX_PAGE_PIXELS = 30_000_000;
+
+/**
+ * 元PDFから切り出し範囲を高解像度で再レンダリングする
+ * @param pdf 読み込み済み PDF（呼び出し側でファイル単位に使い回し、終了時に destroy すること）
+ * @param pageNumber ページ番号（1始まり）
+ * @param cropArea 切り出し範囲（取り込み時レンダリング画像のピクセル座標）
+ * @param renderedSize cropArea の座標系である取り込み画像の実寸（px）
+ * @param targetPixelWidth 出力に必要な横ピクセル数（配置幅×目標dpiから算出）
+ * @returns PNG dataURL。失敗時は null（呼び出し側で既存画像へフォールバック）
+ */
+export async function renderCropHighRes(
+  pdf: pdfjsLib.PDFDocumentProxy,
+  pageNumber: number,
+  cropArea: CropArea,
+  renderedSize: { width: number; height: number },
+  targetPixelWidth: number
+): Promise<string | null> {
+  try {
+    if (
+      renderedSize.width <= 0 ||
+      renderedSize.height <= 0 ||
+      cropArea.width <= 0 ||
+      cropArea.height <= 0 ||
+      targetPixelWidth <= 0
+    ) {
+      return null;
+    }
+
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+
+    // 取り込み画像ピクセル → 相対座標（0〜1）→ PDFポイント座標
+    const relX = cropArea.x / renderedSize.width;
+    const relY = cropArea.y / renderedSize.height;
+    const relW = cropArea.width / renderedSize.width;
+    const relH = cropArea.height / renderedSize.height;
+    const cropWidthPt = relW * baseViewport.width;
+    if (cropWidthPt <= 0) return null;
+
+    // 必要スケール = 目標px / scale1でのcrop幅。メモリ上限でクランプ
+    let scale = targetPixelWidth / cropWidthPt;
+    const pagePixelLimitScale = Math.sqrt(
+      HIGHRES_MAX_PAGE_PIXELS / (baseViewport.width * baseViewport.height)
+    );
+    scale = Math.min(scale, HIGHRES_MAX_SCALE, pagePixelLimitScale);
+    if (!isFinite(scale) || scale <= 0) return null;
+
+    const viewport = page.getViewport({ scale });
+    const fullCanvas = document.createElement('canvas');
+    const fullContext = fullCanvas.getContext('2d');
+    if (!fullContext) return null;
+    fullCanvas.width = Math.round(viewport.width);
+    fullCanvas.height = Math.round(viewport.height);
+    fullContext.fillStyle = 'white';
+    fullContext.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+
+    await page.render({
+      canvasContext: fullContext,
+      viewport,
+      intent: 'print', // 印刷品質（文字がシャープに）
+    }).promise;
+
+    // 相対座標で切り出し
+    const sx = relX * fullCanvas.width;
+    const sy = relY * fullCanvas.height;
+    const sw = relW * fullCanvas.width;
+    const sh = relH * fullCanvas.height;
+
+    const cropCanvas = document.createElement('canvas');
+    const cropContext = cropCanvas.getContext('2d');
+    if (!cropContext) return null;
+    cropCanvas.width = Math.max(1, Math.round(sw));
+    cropCanvas.height = Math.max(1, Math.round(sh));
+    cropContext.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, cropCanvas.width, cropCanvas.height);
+
+    // フルページキャンバスを即解放（8GB機対策）
+    fullCanvas.width = 0;
+    fullCanvas.height = 0;
+
+    // 取り込み時と同じ補正を適用して見た目を揃える
+    const enhanced = applyImageEnhancement(cropCanvas, IMPORT_ENHANCEMENT);
+    return enhanced.toDataURL('image/png');
+  } catch (error) {
+    console.error('高解像度再レンダリングに失敗しました（既存画像で出力します）:', error);
+    return null;
+  }
 }
 
 /**

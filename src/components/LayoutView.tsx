@@ -426,7 +426,8 @@ export function LayoutView() {
 
     setIsExporting(true);
     try {
-      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality, settings.imageEnhancement, settings);
+      // files を渡すと元PDFから高解像度で再レンダリングして出力（K-31）
+      const blob = await exportLayoutToPDF(layoutPages, snippets, pdfQuality, settings.imageEnhancement, settings, files);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

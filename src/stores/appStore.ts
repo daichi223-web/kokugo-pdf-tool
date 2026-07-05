@@ -27,7 +27,7 @@ import type {
 } from '../types';
 import { getPaperDimensions } from '../types';
 import { generateId, mmToPx } from '../utils/helpers';
-import { loadPDF, renderPageToImage, extractTextFromPage } from '../utils/pdfUtils';
+import { loadPDF, renderPageToImage, extractTextFromPage, IMPORT_ENHANCEMENT } from '../utils/pdfUtils';
 import { runOCR } from '../utils/ocrUtils';
 import { exportToText, exportToMarkdown, exportToDocx, exportToPDF } from '../utils/exportUtils';
 import {
@@ -148,23 +148,12 @@ export const useAppStore = create<Store>()(
 
               const endRender = isBenchmarkMode ? startMeasure(`render-page-${pageNum}`) : null;
               const { settings } = get();
-              // 取り込み時のデフォルト補正
-              const importEnhancement = {
-                contrast: 1.0,
-                brightness: 1.05,     // 背景を少し明るく
-                textDarkness: 0.6,    // 文字をしっかり濃く（ガンマ0.6）
-                sharpness: false,
-                autoLevels: true,     // 白を白に、黒を黒に（正規化を最初に）
-                unsharpMask: true,    // エッジ強調（文字の輪郭をシャープに）
-                grayscale: true,      // グレースケール化（処理効率向上）
-                sigmoidContrast: false, // S字コントラストは出力時に適用
-                textBolden: false,     // 文字太らせは出力時に適用
-              };
+              // 取り込み時のデフォルト補正（出力時再レンダリングと共通。pdfUtils.IMPORT_ENHANCEMENT）
               const imageData = await renderPageToImage(
                 pdfData.pdf,
                 pageNum,
                 settings.pdfRenderScale,
-                importEnhancement
+                IMPORT_ENHANCEMENT
               );
               endRender?.({ page: pageNum });
 
