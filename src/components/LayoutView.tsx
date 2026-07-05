@@ -687,7 +687,7 @@ export function LayoutView() {
             className="border rounded px-1 py-1 text-xs"
             value={pdfQuality}
             onChange={(e) => setPdfQuality(e.target.value as PdfQuality)}
-            title="PDF画質設定"
+            title="PDF画質設定（スニペットは元PDFから約300dpiで再生成されます。この設定は再生成できない場合の予備画質と圧縮方式に影響）"
           >
             <option value="maximum">最高画質</option>
             <option value="high">高画質</option>
