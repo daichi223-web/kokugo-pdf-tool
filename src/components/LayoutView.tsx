@@ -841,24 +841,24 @@ export function LayoutView() {
             </div>
           )}
 
-          {/* 揃えグループ（サイズ・位置をまとめる） */}
+          {/* ページ全体への適用グループ（K-16: 選択分のみの「統一」と区別するためラベル・活性を明確化） */}
           <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded border border-blue-200">
-            <span className="text-xs text-blue-600 mr-1">揃え</span>
+            <span className="text-xs text-blue-600 mr-1">全体</span>
             <button
               className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
               onClick={() => activeLayout && selectedPlacedSnippet && applySnippetWidthToLayout(activeLayout.id, selectedPlacedSnippet.size.width)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="幅を揃える"
+              disabled={!activeLayout || !selectedPlacedSnippet || selectedSnippetIds.length >= 2}
+              title="選択スニペットの幅をページ内の全スニペットに適用（複数選択中は選択ツールの「幅統一」を使用）"
             >
-              幅
+              全幅
             </button>
             <button
               className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
               onClick={() => activeLayout && selectedPlacedSnippet && applySnippetHeightToLayout(activeLayout.id, selectedPlacedSnippet.size.height)}
-              disabled={!activeLayout || !selectedPlacedSnippet}
-              title="高さを揃える"
+              disabled={!activeLayout || !selectedPlacedSnippet || selectedSnippetIds.length >= 2}
+              title="選択スニペットの高さをページ内の全スニペットに適用（複数選択中は選択ツールの「高さ統一」を使用）"
             >
-              高さ
+              全高
             </button>
           </div>
 
@@ -960,11 +960,11 @@ export function LayoutView() {
                 </button>
               </div>
               <div className="flex items-center gap-1">
-                <button className="px-2 py-1 text-xs border rounded hover:bg-gray-50" onClick={() => unifySnippetSize(activeLayout.id, 'height')} title="高さ統一">
-                  高さ
+                <button className="px-2 py-1 text-xs border rounded hover:bg-gray-50" onClick={() => unifySnippetSize(activeLayout.id, 'height')} title="選択中のスニペットの高さを統一">
+                  高さ統一
                 </button>
-                <button className="px-2 py-1 text-xs border rounded hover:bg-gray-50" onClick={() => unifySnippetSize(activeLayout.id, 'width')} title="幅統一">
-                  幅
+                <button className="px-2 py-1 text-xs border rounded hover:bg-gray-50" onClick={() => unifySnippetSize(activeLayout.id, 'width')} title="選択中のスニペットの幅を統一">
+                  幅統一
                 </button>
               </div>
               <div className="flex items-center gap-1">

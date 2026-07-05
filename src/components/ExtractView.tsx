@@ -271,7 +271,19 @@ export function ExtractView() {
           {/* 右：抽出テキスト（編集可能）/ レイアウト表示 */}
           <div className="editor-panel">
             <div className="editor-panel-header flex items-center justify-between">
-              <span>{layoutViewMode && layoutHTML ? 'レイアウト表示' : '抽出テキスト'}</span>
+              <span>
+                {layoutViewMode && layoutHTML ? (
+                  <>
+                    レイアウト表示
+                    {/* K-21: OCR時点のブロックから生成するプレビューで、テキスト修正は反映されない */}
+                    <span className="ml-2 text-xs font-normal text-amber-600">
+                      ※OCR時点のプレビュー（テキスト修正は反映されません）
+                    </span>
+                  </>
+                ) : (
+                  '抽出テキスト'
+                )}
+              </span>
               {activePage && (
                 <span className="text-xs text-gray-500">
                   OCR: {activePage.ocrStatus === 'completed' ? '完了' :
