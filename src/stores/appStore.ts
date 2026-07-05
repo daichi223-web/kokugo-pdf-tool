@@ -86,6 +86,9 @@ interface Store extends AppState, AppActions {
   // スニペット再トリミング
   reCropSnippetId: string | null;
   setReCropSnippet: (snippetId: string | null) => void;
+
+  // K-08: 直近の「ページ内詰め」で収まらずスキップされたスニペット数（UI が警告表示に使う）
+  lastRepackSkippedCount: number;
 }
 
 export const useAppStore = create<Store>()(
@@ -111,6 +114,7 @@ export const useAppStore = create<Store>()(
       isBenchmarkMode: false,
       layoutHistory: [],
       reCropSnippetId: null,
+      lastRepackSkippedCount: 0,
 
       // ファイル操作
       // P1-001: PDF読み込み（単体）
@@ -1566,7 +1570,10 @@ export const useAppStore = create<Store>()(
         }
 
         // 位置を更新（幅が収まらない場合のみ、アスペクト比を保ったまま同率縮小）
+        // K-08: 収まらずスキップされた数を記録し、UI が警告トーストを出せるようにする
+        const skippedCount = page.snippets.length - positionMap.size;
         set((state) => ({
+          lastRepackSkippedCount: skippedCount,
           layoutPages: state.layoutPages.map((p) =>
             p.id === pageId
               ? {

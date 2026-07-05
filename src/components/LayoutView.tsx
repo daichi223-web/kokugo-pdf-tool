@@ -816,9 +816,14 @@ export function LayoutView() {
                     setShowRepackConfirm(true);
                   } else {
                     repackAllSnippets(activeLayout.id);
-                    // Undo案内トースト
-                    setUndoToast('ページ内を詰め直しました（Ctrl+Z で元に戻せます）');
-                    setTimeout(() => setUndoToast(null), 3000);
+                    // Undo案内トースト（K-08: 収まらなかった件数があれば警告）
+                    const skipped = useAppStore.getState().lastRepackSkippedCount;
+                    setUndoToast(
+                      skipped > 0
+                        ? `詰め直しました。⚠ ${skipped}件は収まらず元の位置のままです（余白や用紙サイズを見直してください・Ctrl+Zで戻せます）`
+                        : 'ページ内を詰め直しました（Ctrl+Z で元に戻せます）'
+                    );
+                    setTimeout(() => setUndoToast(null), skipped > 0 ? 6000 : 3000);
                   }
                 }}
                 title={`${settings.writingDirection === 'vertical' ? '右上' : '左上'}基準で詰める（${settings.writingDirection === 'vertical' ? '縦書き' : '横書き'}）`}
