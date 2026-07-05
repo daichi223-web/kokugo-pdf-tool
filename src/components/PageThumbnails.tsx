@@ -144,7 +144,8 @@ export function PageThumbnails({ file, multiSelectMode = false }: PageThumbnails
 
               {page.imageData ? (
                 <img
-                  src={page.imageData}
+                  // K-13: 一覧はサムネイルを使用（旧データは thumbnailData 無しのためフル画像へフォールバック）
+                  src={page.thumbnailData ?? page.imageData}
                   alt={`Page ${page.pageNumber}`}
                   className="w-full h-auto"
                 />

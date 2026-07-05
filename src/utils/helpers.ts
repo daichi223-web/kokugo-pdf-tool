@@ -65,6 +65,30 @@ export function verticalToHorizontal(text: string): string {
 }
 
 /**
+ * サムネイル用の縮小画像を生成（K-13）
+ * 一覧表示でフル解像度ビットマップをデコードし続けないためのもの。
+ * @param dataUrl 元画像
+ * @param maxDim 長辺の最大ピクセル
+ */
+export async function createThumbnail(dataUrl: string, maxDim: number = 240): Promise<string> {
+  const img = await createImageFromDataURL(dataUrl);
+  const ratio = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+  if (ratio >= 1) return dataUrl;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * ratio));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return dataUrl;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.75);
+}
+
+/**
  * mm を px に変換（300dpi基準）
  */
 export function mmToPx(mm: number, dpi: number = 300): number {

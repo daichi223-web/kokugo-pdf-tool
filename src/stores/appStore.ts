@@ -26,7 +26,7 @@ import type {
   ShapeType,
 } from '../types';
 import { getPaperDimensions } from '../types';
-import { generateId, mmToPx } from '../utils/helpers';
+import { generateId, mmToPx, createThumbnail } from '../utils/helpers';
 import { loadPDF, renderPageToImage, extractTextFromPage, IMPORT_ENHANCEMENT } from '../utils/pdfUtils';
 import { runOCR } from '../utils/ocrUtils';
 import { exportToText, exportToMarkdown, exportToDocx, exportToPDF } from '../utils/exportUtils';
@@ -161,11 +161,15 @@ export const useAppStore = create<Store>()(
               const textContent = await extractTextFromPage(pdfData.pdf, pageNum);
               endExtract?.({ page: pageNum, hasText: !!textContent });
 
+              // K-13: 一覧表示用の縮小サムネイル（失敗してもフル画像で表示できるので握りつぶす）
+              const thumbnailData = await createThumbnail(imageData).catch(() => undefined);
+
               pages.push({
                 pageNumber: pageNum,
                 width: pdfData.width,
                 height: pdfData.height,
                 imageData,
+                thumbnailData,
                 textContent: textContent || '',
                 ocrStatus: textContent ? 'completed' : 'pending',
                 ocrProgress: textContent ? 100 : 0,

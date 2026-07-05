@@ -19,6 +19,7 @@ export interface PDFPage {
   width: number;
   height: number;
   imageData?: string; // Base64 encoded image
+  thumbnailData?: string; // サムネイル用縮小画像（K-13。一覧でフル解像度をデコードしない）
   textContent?: string;
   ocrStatus: OCRStatus;
   ocrProgress: number;
