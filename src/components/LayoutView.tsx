@@ -253,6 +253,21 @@ export function LayoutView() {
     }
   }, [mode, cropImageSize, calculateCropFitZoom]);
 
+  // Ctrl+Z で Undo（リスナーはここで一元登録。K-04: LayoutCanvas 各インスタンス登録だと連続表示で多重発火する）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        const target = e.target as HTMLElement;
+        // テキスト入力中はブラウザ標準の Undo を優先
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        e.preventDefault();
+        useAppStore.getState().undoLayout();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // ウィンドウリサイズ時に再計算
   useEffect(() => {
     const handleResize = () => {

@@ -34,7 +34,6 @@ export function LayoutCanvas({
     setSelectedSnippet,
     addSnippetToLayout,
     pushLayoutHistory,
-    undoLayout,
     selectedSnippetIds,
     togglePlacedSnippetSelection,
     clearPlacedSnippetSelection,
@@ -150,6 +149,9 @@ export function LayoutCanvas({
     [layoutPage.snippets, zoom, setSelectedSnippet]
   );
 
+  // K-03: 履歴は変更「前」の状態を初回移動時に一度だけ積む（mouseup では変更後を積むことになり Undo 不能）
+  const dragHistoryPushedRef = useRef(false);
+
   // document監視でリサイズ/ドラッグ（画面外でも追跡）
   useEffect(() => {
     if (!dragging && !resizing) return;
@@ -157,6 +159,11 @@ export function LayoutCanvas({
     const handleMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
+
+      if (!dragHistoryPushedRef.current) {
+        pushLayoutHistory();
+        dragHistoryPushedRef.current = true;
+      }
 
       // リサイズ処理
       if (resizing) {
@@ -287,16 +294,14 @@ export function LayoutCanvas({
     };
 
     const handleMouseUp = () => {
-      // ドラッグ/リサイズ終了時に履歴を保存
-      if (dragging || resizing) {
-        pushLayoutHistory();
-      }
+      dragHistoryPushedRef.current = false;
       setDragging(null);
       setResizing(null);
     };
 
     // HTML5 Drag終了時もドラッグ状態をリセット
     const handleDragEnd = () => {
+      dragHistoryPushedRef.current = false;
       setDragging(null);
       setResizing(null);
     };
@@ -323,20 +328,7 @@ export function LayoutCanvas({
     marginYPx,
   ]);
 
-  // Ctrl+Z で Undo
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        undoLayout();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [undoLayout]);
+  // Ctrl+Z の keydown リスナーは LayoutView 側で一元登録（K-04: 連続表示でページ数分多重発火していた）
 
   // テキスト要素のドラッグ/リサイズ処理
   useEffect(() => {
@@ -345,6 +337,11 @@ export function LayoutCanvas({
     const handleMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
+
+      if (!dragHistoryPushedRef.current) {
+        pushLayoutHistory();
+        dragHistoryPushedRef.current = true;
+      }
 
       // テキストリサイズ処理
       if (resizingText) {
@@ -397,9 +394,7 @@ export function LayoutCanvas({
     };
 
     const handleMouseUp = () => {
-      if (draggingText || resizingText) {
-        pushLayoutHistory();
-      }
+      dragHistoryPushedRef.current = false;
       setDraggingText(null);
       setResizingText(null);
     };
@@ -420,6 +415,11 @@ export function LayoutCanvas({
     const handleMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current) return;
       const rect = canvasRef.current.getBoundingClientRect();
+
+      if (!dragHistoryPushedRef.current) {
+        pushLayoutHistory();
+        dragHistoryPushedRef.current = true;
+      }
 
       if (resizingShape) {
         const currentX = (e.clientX - rect.left) / zoom;
@@ -467,9 +467,7 @@ export function LayoutCanvas({
     };
 
     const handleMouseUp = () => {
-      if (draggingShape || resizingShape) {
-        pushLayoutHistory();
-      }
+      dragHistoryPushedRef.current = false;
       setDraggingShape(null);
       setResizingShape(null);
     };
@@ -753,6 +751,8 @@ export function LayoutCanvas({
             }}
             onDoubleClick={(e) => {
               e.stopPropagation();
+              // 編集開始前の状態を履歴へ（onChange が逐次コミットするため、開始時に積まないと Undo 不能）
+              pushLayoutHistory();
               setEditingTextId(textElement.id);
             }}
             onClick={(e) => {
@@ -781,7 +781,6 @@ export function LayoutCanvas({
                 }}
                 onBlur={() => {
                   setEditingTextId(null);
-                  pushLayoutHistory();
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
