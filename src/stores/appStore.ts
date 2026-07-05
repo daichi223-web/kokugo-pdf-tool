@@ -1515,10 +1515,14 @@ export const useAppStore = create<Store>()(
         const totalColWidth = columns.reduce((sum, col) =>
           sum + (col.snippetIds.length > 0 ? col.maxWidth : 0), 0);
 
+        // 幅が収まらない場合の縮小率（K-06/K-07: 縮小時は位置だけでなくサイズも
+        // 同率で縮める。従来は位置のみ縮小間隔で詰め、実サイズ原寸のため印刷で重なっていた）
+        const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
+        const sizeMap = new Map<string, { width: number; height: number }>();
+
         if (isVertical) {
           // 縦書き: 右端から左へ詰める
           // columns[maxCols-1]が右端の列（スニペット1,3,...）
-          const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
           let cursorX = availableWidth;
           for (let ci = maxCols - 1; ci >= 0; ci--) {
             const col = columns[ci];
@@ -1528,16 +1532,17 @@ export const useAppStore = create<Store>()(
             const clampedX = Math.max(0, cursorX);
             let cursorY = 0;
             for (let i = 0; i < col.snippetIds.length; i++) {
-              const snippetWidth = col.sizes[i].width * scale;
-              const x = clampedX + (effectiveColWidth - snippetWidth); // 列内右寄せ
+              const w = col.sizes[i].width * scale;
+              const h = col.sizes[i].height * scale;
+              const x = clampedX + (effectiveColWidth - w); // 列内右寄せ
               positionMap.set(col.snippetIds[i], { x: Math.max(0, x), y: cursorY });
-              cursorY += col.sizes[i].height;
+              if (scale < 1) sizeMap.set(col.snippetIds[i], { width: w, height: h });
+              cursorY += h;
             }
           }
         } else {
           // 横書き: 左端から右へ詰める
           // columns[0]が左端の列（スニペット1,3,...）
-          const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
           let cursorX = 0;
           for (let ci = 0; ci < maxCols; ci++) {
             const col = columns[ci];
@@ -1545,14 +1550,17 @@ export const useAppStore = create<Store>()(
             const effectiveColWidth = col.maxWidth * scale;
             let cursorY = 0;
             for (let i = 0; i < col.snippetIds.length; i++) {
+              const w = col.sizes[i].width * scale;
+              const h = col.sizes[i].height * scale;
               positionMap.set(col.snippetIds[i], { x: cursorX, y: cursorY });
-              cursorY += col.sizes[i].height;
+              if (scale < 1) sizeMap.set(col.snippetIds[i], { width: w, height: h });
+              cursorY += h;
             }
             cursorX += effectiveColWidth;
           }
         }
 
-        // 位置のみ更新（サイズは変更しない — scaleが1未満の場合もサイズは維持）
+        // 位置を更新（幅が収まらない場合のみ、アスペクト比を保ったまま同率縮小）
         set((state) => ({
           layoutPages: state.layoutPages.map((p) =>
             p.id === pageId
@@ -1560,7 +1568,11 @@ export const useAppStore = create<Store>()(
                   ...p,
                   snippets: p.snippets.map((s) => {
                     const newPos = positionMap.get(s.snippetId);
-                    return newPos ? { ...s, position: newPos } : s;
+                    if (!newPos) return s;
+                    const newSize = sizeMap.get(s.snippetId);
+                    return newSize
+                      ? { ...s, position: newPos, size: newSize }
+                      : { ...s, position: newPos };
                   }),
                 }
               : p
@@ -1760,14 +1772,16 @@ export const useAppStore = create<Store>()(
               const clampedX = Math.max(0, cursorX);
               let cursorY = 0;
               for (const placed of col.snippets) {
+                // K-07: 縮小時は高さも同率で縮めアスペクト比を維持（従来は幅のみで横潰れ）
                 const snippetWidth = placed.size.width * scale;
+                const snippetHeight = placed.size.height * scale;
                 const x = clampedX + (effectiveColWidth - snippetWidth); // 列内右寄せ
                 result.push({
                   ...placed,
                   position: { x: Math.max(0, x), y: cursorY },
-                  ...(scale < 1 ? { size: { width: snippetWidth, height: placed.size.height } } : {}),
+                  ...(scale < 1 ? { size: { width: snippetWidth, height: snippetHeight } } : {}),
                 });
-                cursorY += placed.size.height;
+                cursorY += snippetHeight;
               }
             }
           } else {
@@ -1781,13 +1795,15 @@ export const useAppStore = create<Store>()(
               const effectiveColWidth = col.maxWidth * scale;
               let cursorY = 0;
               for (const placed of col.snippets) {
+                // K-07: 縮小時は高さも同率で縮めアスペクト比を維持（従来は幅のみで横潰れ）
                 const snippetWidth = placed.size.width * scale;
+                const snippetHeight = placed.size.height * scale;
                 result.push({
                   ...placed,
                   position: { x: cursorX, y: cursorY },
-                  ...(scale < 1 ? { size: { width: snippetWidth, height: placed.size.height } } : {}),
+                  ...(scale < 1 ? { size: { width: snippetWidth, height: snippetHeight } } : {}),
                 });
-                cursorY += placed.size.height;
+                cursorY += snippetHeight;
               }
               cursorX += effectiveColWidth;
             }
