@@ -414,6 +414,81 @@ export async function renderPageToImage(
   return finalCanvas.toDataURL('image/png');
 }
 
+// =============================================================================
+// K-33: 元スキャン画像のネイティブ解像度取得
+// 「拡大するとボケる」の判定に使う。取り込み画像(pdfRenderScale基準=低解像度)では
+// なく、元PDFに埋め込まれたスキャン画像そのものの画素数を測る。これが鮮明さの物理的
+// な天井（出力時 renderCropHighRes が到達できる上限）を決める。
+// =============================================================================
+
+/** page.objs から画像データを取得（未解決なら待つ）。ハングしないよう timeout 付き。 */
+function getPdfObjWithTimeout(
+  objs: { get: (id: string, cb?: (data: unknown) => void) => unknown },
+  name: string,
+  ms: number
+): Promise<{ width?: number; height?: number } | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (v: { width?: number; height?: number } | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const timer = setTimeout(() => finish(null), ms);
+    try {
+      objs.get(name, (data) => finish((data as { width?: number; height?: number }) ?? null));
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+/**
+ * ページに埋め込まれた最大画像のネイティブ画素数を返す。
+ * スキャンPDFは1ページ＝1枚の大きな画像なので、それがスキャン原稿の実解像度。
+ * ベクターPDF（画像なし）や取得失敗時は null（＝解像度無制限扱い／判定不能）。
+ * @param page レンダリング済みの PageProxy（objs が解決済みだと即返る）
+ */
+export async function getSourceImagePixelSize(
+  page: pdfjsLib.PDFPageProxy
+): Promise<{ width: number; height: number } | null> {
+  try {
+    const opList = await page.getOperatorList();
+    const { OPS } = pdfjsLib;
+    const candidates: { width: number; height: number }[] = [];
+    const consider = (w?: number, h?: number) => {
+      if (w && h) candidates.push({ width: w, height: h });
+    };
+
+    const imageNames: string[] = [];
+    for (let i = 0; i < opList.fnArray.length; i++) {
+      const fn = opList.fnArray[i];
+      const args = opList.argsArray[i];
+      if (fn === OPS.paintImageXObject || fn === OPS.paintImageXObjectRepeat) {
+        if (typeof args?.[0] === 'string') imageNames.push(args[0] as string);
+      } else if (fn === OPS.paintInlineImageXObject) {
+        const img = args?.[0] as { width?: number; height?: number } | undefined;
+        consider(img?.width, img?.height);
+      }
+    }
+
+    const objs = page.objs as unknown as {
+      get: (id: string, cb?: (data: unknown) => void) => unknown;
+    };
+    for (const name of imageNames) {
+      const data = await getPdfObjWithTimeout(objs, name, 1500);
+      consider(data?.width, data?.height);
+    }
+
+    if (candidates.length === 0) return null;
+    // 最大面積の画像＝スキャン原稿本体
+    return candidates.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * PDFページからテキストを抽出（デジタルPDF用）
  * P1-004: デジタルPDFテキスト抽出

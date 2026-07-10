@@ -27,7 +27,7 @@ import type {
 } from '../types';
 import { getPaperDimensions } from '../types';
 import { generateId, mmToPx, createThumbnail } from '../utils/helpers';
-import { loadPDF, renderPageToImage, extractTextFromPage, IMPORT_ENHANCEMENT } from '../utils/pdfUtils';
+import { loadPDF, renderPageToImage, extractTextFromPage, getSourceImagePixelSize, IMPORT_ENHANCEMENT } from '../utils/pdfUtils';
 import { runOCR } from '../utils/ocrUtils';
 import { exportToText, exportToMarkdown, exportToDocx, exportToPDF } from '../utils/exportUtils';
 import {
@@ -168,12 +168,20 @@ export const useAppStore = create<Store>()(
               // K-13: 一覧表示用の縮小サムネイル（失敗してもフル画像で表示できるので握りつぶす）
               const thumbnailData = await createThumbnail(imageData).catch(() => undefined);
 
+              // K-33: 元スキャン画像のネイティブ解像度（鮮明さ＝実効印刷dpiの計算基盤）。
+              // renderPageToImage 直後で objs は解決済み。失敗しても取り込みは続行。
+              const sourceImageSize = await getSourceImagePixelSize(
+                await pdfData.pdf.getPage(pageNum)
+              ).catch(() => null);
+
               pages.push({
                 pageNumber: pageNum,
                 width: pdfData.width,
                 height: pdfData.height,
                 imageData,
                 thumbnailData,
+                sourceImageWidth: sourceImageSize?.width,
+                sourceImageHeight: sourceImageSize?.height,
                 textContent: textContent || '',
                 ocrStatus: textContent ? 'completed' : 'pending',
                 ocrProgress: textContent ? 100 : 0,
@@ -1414,9 +1422,11 @@ export const useAppStore = create<Store>()(
 
         const isVertical = settings.writingDirection === 'vertical';
 
-        // 行優先でスニペットを列に配分（サイズは変更しない）
-        // 縦書き: 行を右→左に埋めてから次の行（2,1 / 4,3 / 5）
-        // 横書き: 行を左→右に埋めてから次の行（1,2 / 3,4 / 5）
+        // 貪欲な列優先詰め（サイズは変更しない）。
+        // 現在の列を高さの上限まで埋めてから次の列へ送る。ラウンドロビン（1個ずつ配る）と違い
+        // 列の高さが揃い、下端に残る余白が最小になる。溢れスキップも「全列を使い切ったとき」だけに減る。
+        // 縦書き: 列を上→下に積み、列は右→左へ（＝縦書きの読み順と一致）。
+        // 横書き: 列を上→下に積み、列は左→右へ。
         type ColumnData = { snippetIds: string[]; sizes: { width: number; height: number }[]; maxWidth: number; usedHeight: number };
 
         // maxCols列を事前に作成
@@ -1425,55 +1435,30 @@ export const useAppStore = create<Store>()(
           columns.push({ snippetIds: [], sizes: [], maxWidth: 0, usedHeight: 0 });
         }
 
-        // 行優先ラウンドロビンで列に配分
         let colCursor = isVertical ? maxCols - 1 : 0; // 縦書き:右端開始、横書き:左端開始
+        const inRange = () => colCursor >= 0 && colCursor < maxCols;
 
         snippetsToPlace.forEach((snippet) => {
           const w = snippet.size.width;
           const h = snippet.size.height;
 
-          // 現在の列に高さが収まるかチェック
-          if (columns[colCursor].usedHeight + h <= availableHeight || columns[colCursor].usedHeight === 0) {
-            // カーソル列に入る
-            columns[colCursor].snippetIds.push(snippet.snippetId);
-            columns[colCursor].sizes.push({ width: w, height: h });
-            columns[colCursor].maxWidth = Math.max(columns[colCursor].maxWidth, w);
-            columns[colCursor].usedHeight += h;
-
-            // 次の列へ（行優先）
-            if (isVertical) {
-              colCursor--;
-              if (colCursor < 0) colCursor = maxCols - 1;
-            } else {
-              colCursor++;
-              if (colCursor >= maxCols) colCursor = 0;
-            }
-            return;
+          // 現在の列に入らない（かつ空でない）間、次の列へ送る。
+          // 空列には必ず置く（単体で availableHeight を超えても、置き場が無くなるのを防ぐ）。
+          while (
+            inRange() &&
+            columns[colCursor].usedHeight > 0 &&
+            columns[colCursor].usedHeight + h > availableHeight
+          ) {
+            colCursor += isVertical ? -1 : 1;
           }
 
-          // カーソル列が満杯 → 他の列を行優先順で探す
-          const colOrder = isVertical
-            ? Array.from({ length: maxCols }, (_, i) => maxCols - 1 - i)
-            : Array.from({ length: maxCols }, (_, i) => i);
-          for (const ci of colOrder) {
-            if (columns[ci].usedHeight + h <= availableHeight) {
-              columns[ci].snippetIds.push(snippet.snippetId);
-              columns[ci].sizes.push({ width: w, height: h });
-              columns[ci].maxWidth = Math.max(columns[ci].maxWidth, w);
-              columns[ci].usedHeight += h;
-              // フォールバック先の次にカーソルを移動
-              colCursor = ci;
-              if (isVertical) {
-                colCursor--;
-                if (colCursor < 0) colCursor = maxCols - 1;
-              } else {
-                colCursor++;
-                if (colCursor >= maxCols) colCursor = 0;
-              }
-              return;
-            }
-          }
-          // 全列満杯 → このスニペットはスキップ（配置されない）
+          // 全列を使い切った → このスニペットはスキップ（配置されない。K-08で警告）
+          if (!inRange()) return;
+
+          columns[colCursor].snippetIds.push(snippet.snippetId);
+          columns[colCursor].sizes.push({ width: w, height: h });
+          columns[colCursor].maxWidth = Math.max(columns[colCursor].maxWidth, w);
+          columns[colCursor].usedHeight += h;
         });
 
         // X座標を計算（隙間なし）
@@ -1626,9 +1611,9 @@ export const useAppStore = create<Store>()(
         const availableWidth = mmToPx(paperSize.width, 96) - mmToPx(baseMarginX, 96) * 2;
         const availableHeight = mmToPx(paperSize.height, 96) - mmToPx(baseMarginY, 96) * 2;
 
-        // 行優先ラウンドロビンでスニペットを列に配分（ページ跨ぎ）
-        // 縦書き: 行を右→左に埋めてから次の行（2,1 / 4,3 / 5）
-        // 横書き: 行を左→右に埋めてから次の行（1,2 / 3,4 / 5）
+        // 貪欲な列優先詰め（ページ跨ぎ）。現在の列を上限まで埋めてから次の列へ、
+        // 列を使い切ったら新ページ。ラウンドロビンより列の高さが揃い余白が減る。
+        // 縦書き: 列を上→下に積み、列は右→左（＝縦書きの読み順）。横書き: 列は左→右。
         type ColumnData = {
           snippets: PlacedSnippet[];
           maxWidth: number;
@@ -1659,62 +1644,36 @@ export const useAppStore = create<Store>()(
         const pages: PageData[] = [createPage()];
         let currentPageIdx = 0;
         let colCursor = isVertical ? maxCols - 1 : 0;
-
-        const advanceCursor = () => {
-          if (isVertical) {
-            colCursor--;
-            if (colCursor < 0) colCursor = maxCols - 1;
-          } else {
-            colCursor++;
-            if (colCursor >= maxCols) colCursor = 0;
-          }
-        };
+        const startCol = () => (isVertical ? maxCols - 1 : 0);
+        const colInRange = () => colCursor >= 0 && colCursor < maxCols;
 
         for (const snippet of allTargetSnippets) {
           const snippetData = snippetMap.get(snippet.snippetId);
           const h = snippet.size.height;
 
-          // 改ページフラグ
-          if (snippetData?.pageBreakBefore) {
-            const currentPage = pages[currentPageIdx];
-            if (currentPage.columns.some(c => c.snippets.length > 0)) {
-              pages.push(createPage());
-              currentPageIdx = pages.length - 1;
-              colCursor = isVertical ? maxCols - 1 : 0;
-            }
+          // 改ページフラグ: 現在ページに何かあれば新ページから始める
+          if (snippetData?.pageBreakBefore && pages[currentPageIdx].columns.some(c => c.snippets.length > 0)) {
+            pages.push(createPage());
+            currentPageIdx = pages.length - 1;
+            colCursor = startCol();
           }
 
-          // 現在のページのカーソル列に入るか試す
-          const currentPage = pages[currentPageIdx];
-          if (currentPage.columns[colCursor].usedHeight + h <= availableHeight) {
-            addToCol(currentPage.columns[colCursor], snippet);
-            advanceCursor();
-            continue;
+          // 現在の列に入らない（かつ空でない）間、次の列へ送る。列を使い切ったら新ページ。
+          // 空列には必ず置く（単体で availableHeight を超えても置き場を失わない）。
+          const fits = () => {
+            const col = pages[currentPageIdx].columns[colCursor];
+            return col.usedHeight === 0 || col.usedHeight + h <= availableHeight;
+          };
+          while (colInRange() && !fits()) {
+            colCursor += isVertical ? -1 : 1;
+          }
+          if (!colInRange()) {
+            pages.push(createPage());
+            currentPageIdx = pages.length - 1;
+            colCursor = startCol();
           }
 
-          // カーソル列が満杯 → 現在ページの他の列を行優先順で探す
-          let placed = false;
-          const colOrder = isVertical
-            ? Array.from({ length: maxCols }, (_, i) => maxCols - 1 - i)
-            : Array.from({ length: maxCols }, (_, i) => i);
-          for (const ci of colOrder) {
-            if (currentPage.columns[ci].usedHeight + h <= availableHeight) {
-              addToCol(currentPage.columns[ci], snippet);
-              // フォールバック先の列の次にカーソルを移動（読み順を維持）
-              colCursor = ci;
-              advanceCursor();
-              placed = true;
-              break;
-            }
-          }
-          if (placed) continue;
-
-          // 現在ページに入らない → 新ページ
-          pages.push(createPage());
-          currentPageIdx = pages.length - 1;
-          colCursor = isVertical ? maxCols - 1 : 0;
           addToCol(pages[currentPageIdx].columns[colCursor], snippet);
-          advanceCursor();
         }
 
         // Phase 2: 各ページのX,Y座標を計算（隙間なし）

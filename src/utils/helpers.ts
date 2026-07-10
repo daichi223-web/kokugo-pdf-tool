@@ -103,6 +103,61 @@ export function pxToMm(px: number, dpi: number = 300): number {
 }
 
 /**
+ * K-33: 配置サイズでの実効印刷解像度（＝鮮明さ）を求める。
+ *
+ * スキャン原稿は解像度に物理的な天井があり、原寸より大きく置く（拡大）ほど
+ * 出力でボケる。逆に縮小はボケない。その境界を dpi で数値化する。
+ * ソース解像度が不明（ベクターPDF／取得失敗）なら null。
+ *
+ * 導出:
+ *   scanDpi       = 面積ベースの等方解像度（回転に強い）
+ *   取り込み画像での切り出し幅 cropWidthPx は pdfRenderScale×72 dpi 座標系
+ *   配置幅 placedWidthPx は 96dpi 座標系
+ *   実効dpi = scanDpi × (cropWidthPx / placedWidthPx) × 96 / (72 × pdfRenderScale)
+ */
+export type SharpnessLevel = 'sharp' | 'ok' | 'soft' | 'blur';
+
+export interface PrintSharpness {
+  dpi: number;            // 実効印刷dpi（利用可能なディテール）
+  level: SharpnessLevel;
+}
+
+export function computePrintDpi(params: {
+  cropWidthPx: number;         // snippet.cropArea.width（取り込み画像px）
+  placedWidthPx: number;       // 配置幅（96dpi px）
+  sourceImageWidth?: number;   // スキャン本来の画素（幅）
+  sourceImageHeight?: number;  // スキャン本来の画素（高さ）
+  pageWidthPt: number;         // ページ幅（ポイント=72dpi）
+  pageHeightPt: number;        // ページ高さ（ポイント=72dpi）
+  pdfRenderScale: number;      // 取り込みスケール
+}): PrintSharpness | null {
+  const {
+    cropWidthPx, placedWidthPx,
+    sourceImageWidth, sourceImageHeight,
+    pageWidthPt, pageHeightPt, pdfRenderScale,
+  } = params;
+
+  if (
+    !sourceImageWidth || !sourceImageHeight ||
+    cropWidthPx <= 0 || placedWidthPx <= 0 ||
+    pageWidthPt <= 0 || pageHeightPt <= 0 || pdfRenderScale <= 0
+  ) {
+    return null;
+  }
+
+  const pageInchW = pageWidthPt / 72;
+  const pageInchH = pageHeightPt / 72;
+  const scanDpi = Math.sqrt((sourceImageWidth * sourceImageHeight) / (pageInchW * pageInchH));
+
+  const dpi = scanDpi * (cropWidthPx / placedWidthPx) * (96 / (72 * pdfRenderScale));
+  if (!isFinite(dpi) || dpi <= 0) return null;
+
+  const level: SharpnessLevel =
+    dpi >= 200 ? 'sharp' : dpi >= 150 ? 'ok' : dpi >= 120 ? 'soft' : 'blur';
+  return { dpi, level };
+}
+
+/**
  * デバウンス関数
  */
 export function debounce<T extends (...args: unknown[]) => unknown>(

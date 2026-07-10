@@ -448,14 +448,15 @@ export function LayoutView() {
 
     setIsPrinting(true);
     try {
-      await printLayoutDirectly(layoutPages, snippets, settings.imageEnhancement, settings);
+      // files を渡すと元PDFから高解像度で再レンダリングして印刷（K-31。従来は144dpiでボケていた）
+      await printLayoutDirectly(layoutPages, snippets, settings.imageEnhancement, settings, files);
     } catch (error) {
       console.error('印刷エラー:', error);
       alert('印刷の準備に失敗しました');
     } finally {
       setIsPrinting(false);
     }
-  }, [layoutPages, snippets, settings.imageEnhancement]);
+  }, [layoutPages, snippets, settings.imageEnhancement, settings, files]);
 
   // 補正プレビュー生成
   const generateEnhancementPreview = useCallback(async () => {

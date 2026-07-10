@@ -354,35 +354,23 @@ async function processImageForPdf(
   });
 }
 
-/**
- * レイアウトをPDFとしてエクスポート
- * P3-006: 印刷用PDF出力
- * @param layoutPages レイアウトページ配列
- * @param snippets スニペット配列
- * @param quality 出力品質
- * @param enhancement 画像補正設定（オプション）
- * @param settings アプリ設定（縁取り等）
- */
-export async function exportLayoutToPDF(
-  layoutPages: LayoutPage[],
-  snippets: Snippet[],
-  quality: PdfQuality = 'high',
-  enhancement?: ImageEnhancement,
-  settings?: Partial<AppSettings>,
-  files?: PDFFile[]
-): Promise<Blob> {
-  const pdfDoc = await PDFDocument.create();
-  const qualitySettings = PDF_QUALITY_PRESETS[quality];
+// =============================================================================
+// K-31/K-33: 元PDFからの高解像度再レンダリング（PDF出力・直接印刷で共通）
+// 取り込み時の低解像度ラスタ(pdfRenderScale基準=144dpi相当)を引き伸ばすのではなく、
+// 配置サイズと目標dpiから必要ピクセル数を割り出して元PDFから作り直す。これを印刷経路にも
+// 通すことで「印刷ボタンだと従来品質(=ボケる)」を解消し、両経路の品質を揃える。
+// =============================================================================
+const TARGET_DPI = 300;
+const SCREEN_DPI = 96;
 
-  // 画面は96 DPI、PDFは72 DPI（ポイント）
-  const screenDpi = 96;
-  const pdfDpi = 72;
-  const dpiRatio = pdfDpi / screenDpi;
+interface HighResRenderer {
+  /** 配置スニペットを高解像度PNG dataURLで返す。元PDF無し/失敗時は null（低解像度へフォールバック）。 */
+  render: (snippet: Snippet, placedWidthPx: number) => Promise<string | null>;
+  /** 開いた元PDFを解放（8GB機対策）。呼び出し完了後に必ず呼ぶ。 */
+  dispose: () => void;
+}
 
-  // K-31: 出力時高解像度再レンダリングの準備
-  // 元PDFが手元にある場合、切り出し範囲を印刷解像度（目標300dpi）で再レンダリングして埋め込む。
-  // 編集用画像（取り込み時の低解像度ラスタ）を引き伸ばすのではなく元データから作り直すため劣化しない。
-  const TARGET_DPI = 300;
+function createHighResRenderer(files?: PDFFile[]): HighResRenderer {
   const sourcePdfCache = new Map<string, Awaited<ReturnType<typeof loadPDF>> | null>();
   const pageImageSizeCache = new Map<string, { width: number; height: number } | null>();
 
@@ -422,6 +410,62 @@ export async function exportLayoutToPDF(
     return pageImageSizeCache.get(key) ?? null;
   };
 
+  return {
+    render: async (snippet, placedWidthPx) => {
+      if (!files) return null;
+      const sourcePdf = await getSourcePdf(snippet.sourceFileId);
+      if (!sourcePdf) return null;
+      const renderedSize = await getPageImageSize(snippet.sourceFileId, snippet.sourcePageNumber);
+      if (!renderedSize) return null;
+      // 配置幅(96dpi px) → 目標dpiでの必要ピクセル幅
+      const targetPixelWidth = Math.round(placedWidthPx * (TARGET_DPI / SCREEN_DPI));
+      return renderCropHighRes(
+        sourcePdf.pdf,
+        snippet.sourcePageNumber,
+        snippet.cropArea,
+        renderedSize,
+        targetPixelWidth
+      );
+    },
+    dispose: () => {
+      for (const cached of sourcePdfCache.values()) {
+        cached?.pdf.destroy().catch(() => undefined);
+      }
+      sourcePdfCache.clear();
+      pageImageSizeCache.clear();
+    },
+  };
+}
+
+/**
+ * レイアウトをPDFとしてエクスポート
+ * P3-006: 印刷用PDF出力
+ * @param layoutPages レイアウトページ配列
+ * @param snippets スニペット配列
+ * @param quality 出力品質
+ * @param enhancement 画像補正設定（オプション）
+ * @param settings アプリ設定（縁取り等）
+ */
+export async function exportLayoutToPDF(
+  layoutPages: LayoutPage[],
+  snippets: Snippet[],
+  quality: PdfQuality = 'high',
+  enhancement?: ImageEnhancement,
+  settings?: Partial<AppSettings>,
+  files?: PDFFile[]
+): Promise<Blob> {
+  const pdfDoc = await PDFDocument.create();
+  const qualitySettings = PDF_QUALITY_PRESETS[quality];
+
+  // 画面は96 DPI、PDFは72 DPI（ポイント）
+  const screenDpi = 96;
+  const pdfDpi = 72;
+  const dpiRatio = pdfDpi / screenDpi;
+
+  // K-31: 出力時高解像度再レンダリング（印刷経路と共通のレンダラ）
+  const hr = createHighResRenderer(files);
+  let lowResFallbackCount = 0; // 高解像度化できず低解像度のまま出したスニペット数
+
   for (const layoutPage of layoutPages) {
     const paperSize = getPaperDimensions(layoutPage.paperSize, layoutPage.orientation);
     const pageWidth = mmToPx(paperSize.width, pdfDpi); // PDF points
@@ -441,27 +485,14 @@ export async function exportLayoutToPDF(
         // K-31: まず元PDFからの高解像度再レンダリングを試みる
         let imageData = snippet.imageData;
         let effectiveQuality = qualitySettings;
-        const sourcePdf = await getSourcePdf(snippet.sourceFileId);
-        if (sourcePdf) {
-          const renderedSize = await getPageImageSize(snippet.sourceFileId, snippet.sourcePageNumber);
-          if (renderedSize) {
-            // 配置幅(96dpi px) → 目標dpiでの必要ピクセル幅
-            const targetPixelWidth = Math.round(
-              placedSnippet.size.width * (TARGET_DPI / screenDpi)
-            );
-            const highRes = await renderCropHighRes(
-              sourcePdf.pdf,
-              snippet.sourcePageNumber,
-              snippet.cropArea,
-              renderedSize,
-              targetPixelWidth
-            );
-            if (highRes) {
-              imageData = highRes;
-              // 既に必要解像度で生成済みのため、追加の拡大・JPEG化はしない
-              effectiveQuality = { format: 'png', quality: 1, scale: 1, useOriginalSize: true };
-            }
-          }
+        const highRes = await hr.render(snippet, placedSnippet.size.width);
+        if (highRes) {
+          imageData = highRes;
+          // 既に必要解像度で生成済みのため、追加の拡大・JPEG化はしない
+          effectiveQuality = { format: 'png', quality: 1, scale: 1, useOriginalSize: true };
+        } else if (files) {
+          // 元PDFはあるはずなのに高解像度化できなかった＝低解像度のまま出力（黙って劣化させない）
+          lowResFallbackCount++;
         }
 
         // 画像を処理（補正適用）してPDFに埋め込み
@@ -600,11 +631,12 @@ export async function exportLayoutToPDF(
   }
 
   // 再レンダリング用に開いた元PDFを解放（8GB機対策）
-  for (const cached of sourcePdfCache.values()) {
-    cached?.pdf.destroy().catch(() => undefined);
+  hr.dispose();
+  if (lowResFallbackCount > 0) {
+    console.warn(
+      `[K-31] ${lowResFallbackCount}件のスニペットを高解像度化できず低解像度のまま出力しました。`
+    );
   }
-  sourcePdfCache.clear();
-  pageImageSizeCache.clear();
 
   const pdfBytes = await pdfDoc.save();
   return new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
@@ -648,12 +680,14 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
  * @param snippets スニペット配列
  * @param enhancement 画像補正設定（オプション）
  * @param settings アプリ設定（縁取り等）
+ * @param files 元PDF（渡すと高解像度で再レンダリングして印刷。PDF出力と同品質になる）
  */
 export async function printLayoutDirectly(
   layoutPages: LayoutPage[],
   snippets: Snippet[],
   enhancement?: ImageEnhancement,
-  settings?: Partial<AppSettings>
+  settings?: Partial<AppSettings>,
+  files?: PDFFile[]
 ): Promise<void> {
   // 印刷用コンテナを作成
   const printContainer = document.createElement('div');
@@ -670,6 +704,11 @@ export async function printLayoutDirectly(
 
   // 画面は96 DPI基準
   const screenDpi = 96;
+
+  // K-31/K-33: 印刷でも元PDFから高解像度で再レンダリング（従来は取り込み画像=144dpiのままで
+  // 印刷がボケていた）。PDF出力と同じレンダラを使い品質を揃える。
+  const hr = createHighResRenderer(files);
+  let lowResFallbackCount = 0;
 
   for (let pageIndex = 0; pageIndex < layoutPages.length; pageIndex++) {
     const layoutPage = layoutPages[pageIndex];
@@ -698,8 +737,17 @@ export async function printLayoutDirectly(
       const snippet = snippets.find((s) => s.id === placedSnippet.snippetId);
       if (!snippet || !snippet.imageData) continue;
 
-      // 画像補正を適用
-      let finalImageData = snippet.imageData;
+      // K-31: 元PDFから高解像度で再レンダリング（失敗時は取り込み画像にフォールバック）
+      let baseImageData = snippet.imageData;
+      const highRes = await hr.render(snippet, placedSnippet.size.width);
+      if (highRes) {
+        baseImageData = highRes;
+      } else if (files) {
+        lowResFallbackCount++;
+      }
+
+      // 画像補正を適用（高解像度画像にも同じ補正を掛けPDF出力と見た目を揃える）
+      let finalImageData = baseImageData;
       if (enhancement) {
         const needsEnhancement =
           (enhancement.textDarkness !== undefined && enhancement.textDarkness !== 1.0) ||
@@ -713,7 +761,7 @@ export async function printLayoutDirectly(
         if (needsEnhancement) {
           // Canvasで補正を適用
           const tempImg = new Image();
-          tempImg.src = snippet.imageData;
+          tempImg.src = baseImageData;
           await new Promise<void>((resolve) => {
             tempImg.onload = () => {
               const canvas = document.createElement('canvas');
@@ -808,6 +856,14 @@ export async function printLayoutDirectly(
     }
 
     printContainer.appendChild(pageDiv);
+  }
+
+  // 高解像度dataURLは生成済みなので、ここで元PDFを解放（8GB機対策）
+  hr.dispose();
+  if (lowResFallbackCount > 0) {
+    console.warn(
+      `[K-31] ${lowResFallbackCount}件のスニペットを高解像度化できず低解像度のまま印刷します。`
+    );
   }
 
   document.body.appendChild(printContainer);

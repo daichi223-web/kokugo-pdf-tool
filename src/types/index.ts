@@ -16,10 +16,15 @@ export interface PDFFile {
 
 export interface PDFPage {
   pageNumber: number;
-  width: number;
-  height: number;
+  width: number;   // ページ幅（ポイント=72dpi）
+  height: number;  // ページ高さ（ポイント=72dpi）
   imageData?: string; // Base64 encoded image
   thumbnailData?: string; // サムネイル用縮小画像（K-13。一覧でフル解像度をデコードしない）
+  // K-33: 元スキャン画像の本来の画素数（鮮明さ＝実効印刷dpiの計算に使う）。
+  // 取り込み画像(pdfRenderScale基準)ではなく元PDF埋め込み画像のネイティブ解像度。
+  // ベクターPDFや取得失敗時は undefined。
+  sourceImageWidth?: number;
+  sourceImageHeight?: number;
   textContent?: string;
   ocrStatus: OCRStatus;
   ocrProgress: number;

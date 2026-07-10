@@ -7,9 +7,22 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Crop } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
-import { mmToPx, pxToMm } from '../utils/helpers';
+import { mmToPx, pxToMm, computePrintDpi, type SharpnessLevel } from '../utils/helpers';
 import type { LayoutPage, Snippet, Position } from '../types';
 import { getPaperDimensions } from '../types';
+
+// K-33: 鮮明さレベルごとの色とラベル（実効印刷dpiバッジ用）
+const SHARPNESS_STYLE: Record<SharpnessLevel, { bg: string; label: string }> = {
+  sharp: { bg: '#16a34a', label: '鮮明' },   // green
+  ok:    { bg: '#65a30d', label: 'ほぼ鮮明' }, // lime
+  soft:  { bg: '#d97706', label: 'やや甘い' }, // amber
+  blur:  { bg: '#dc2626', label: 'ボケ' },     // red
+};
+
+// 実効dpiの表示文字列（出力は最大300dpiなので上限は「300+」と表記）
+function formatDpi(dpi: number): string {
+  return dpi >= 300 ? '300+dpi' : `${Math.round(dpi)}dpi`;
+}
 
 interface LayoutCanvasProps {
   layoutPage: LayoutPage;
@@ -47,7 +60,29 @@ export function LayoutCanvas({
     setSelectedShapeId,
     setReCropSnippet,
     settings,
+    files,
   } = useAppStore();
+
+  // K-33: 配置サイズでの実効印刷解像度（鮮明さ）を求める。拡大しすぎると印刷でボケる
+  // 境界を可視化するため。元がスキャンでない/解像度不明なら null（バッジ非表示）。
+  const getSharpness = useCallback(
+    (snippet: Snippet, placedWidthPx: number) => {
+      const page = files
+        .find((f) => f.id === snippet.sourceFileId)
+        ?.pages.find((p) => p.pageNumber === snippet.sourcePageNumber);
+      if (!page) return null;
+      return computePrintDpi({
+        cropWidthPx: snippet.cropArea.width,
+        placedWidthPx,
+        sourceImageWidth: page.sourceImageWidth,
+        sourceImageHeight: page.sourceImageHeight,
+        pageWidthPt: page.width,
+        pageHeightPt: page.height,
+        pdfRenderScale: settings.pdfRenderScale,
+      });
+    },
+    [files, settings.pdfRenderScale]
+  );
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -630,6 +665,9 @@ export function LayoutCanvas({
         // 縁取りの幅（px）
         const borderWidthPx = settings.showSnippetBorder ? mmToPx(settings.snippetBorderWidth, 96) * zoom : 0;
 
+        // K-33: 実効印刷dpi（鮮明さ）。選択中はバッジ表示、未選択でも「ボケ」は警告フラグ。
+        const sharpness = getSharpness(snippet, placed.size.width);
+
         return (
           <div
             key={placed.snippetId}
@@ -668,6 +706,17 @@ export function LayoutCanvas({
               className="w-full h-full object-contain"
               draggable={false}
             />
+
+            {/* K-33: 未選択でも「ボケ」スニペットは一目で分かるよう左上に警告フラグ */}
+            {!isSelected && sharpness?.level === 'blur' && (
+              <div
+                className="absolute top-0 left-0 text-white text-xs leading-none px-1 py-0.5 rounded-br"
+                style={{ backgroundColor: SHARPNESS_STYLE.blur.bg, zIndex: 20 }}
+                title={`拡大しすぎです（約${Math.round(sharpness.dpi)}dpi）。印刷でボケます。小さくするか元を大きく取り込み直してください。`}
+              >
+                ⚠
+              </div>
+            )}
 
             {/* リサイズハンドル（8つ） */}
             {isSelected && (
@@ -710,6 +759,23 @@ export function LayoutCanvas({
                 <div className="absolute -bottom-6 left-0 bg-blue-600 text-white text-xs px-2 py-0.5 rounded whitespace-nowrap" style={{ zIndex: 25 }}>
                   {Math.round(pxToMm(placed.size.width, 96))}mm × {Math.round(pxToMm(placed.size.height, 96))}mm
                 </div>
+
+                {/* K-33: 実効印刷dpi（鮮明さ）バッジ。リサイズ中もライブ更新し、
+                    「これ以上大きくすると印刷でボケる」境界を可視化する。 */}
+                {sharpness && (
+                  <div
+                    className="absolute -top-6 left-0 text-white text-xs px-2 py-0.5 rounded whitespace-nowrap flex items-center gap-1"
+                    style={{ backgroundColor: SHARPNESS_STYLE[sharpness.level].bg, zIndex: 25 }}
+                    title={
+                      sharpness.level === 'sharp' || sharpness.level === 'ok'
+                        ? `印刷解像度 約${formatDpi(sharpness.dpi)}。この大きさなら鮮明に印刷できます。`
+                        : `印刷解像度 約${Math.round(sharpness.dpi)}dpi。${sharpness.level === 'blur' ? '拡大しすぎで印刷がボケます。' : 'やや甘くなります。'}小さくするか、元をもっと大きく取り込み直すと鮮明になります。`
+                    }
+                  >
+                    {(sharpness.level === 'soft' || sharpness.level === 'blur') && <span>⚠</span>}
+                    <span>{formatDpi(sharpness.dpi)}・{SHARPNESS_STYLE[sharpness.level].label}</span>
+                  </div>
+                )}
               </>
             )}
           </div>
