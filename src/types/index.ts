@@ -303,6 +303,7 @@ export interface AppActions {
   adjustPageSnippetsGap: (pageId: string, gapX: number, gapY: number) => void;
   repackAllSnippets: (pageId: string) => void;
   repackAcrossPages: (cols?: number, rows?: number) => void;
+  zeroPageMarginsAndRepack: (pageId: string) => void;
   unifyAllPagesSnippetSize: () => void;
 
   // テキスト要素操作

@@ -135,6 +135,7 @@ export function LayoutView() {
     updateLayoutPageMarginY,
     repackAllSnippets,
     repackAcrossPages,
+    zeroPageMarginsAndRepack,
     unifyAllPagesSnippetSize,
   } = useAppStore();
 
@@ -538,7 +539,7 @@ export function LayoutView() {
                   : 'text-amber-700 hover:bg-amber-300'
               }`}
               onClick={() => {
-                updateSettings({ writingDirection: 'vertical', layoutAnchor: 'right-top' });
+                updateSettings({ writingDirection: 'vertical', layoutAnchor: settings.layoutAnchor === 'center' ? 'center' : 'right-top' });
                 setNewPageSize('A3');
                 setNewPageOrientation('landscape');
               }}
@@ -552,7 +553,7 @@ export function LayoutView() {
                   : 'text-amber-700 hover:bg-amber-300'
               }`}
               onClick={() => {
-                updateSettings({ writingDirection: 'horizontal', layoutAnchor: 'left-top' });
+                updateSettings({ writingDirection: 'horizontal', layoutAnchor: settings.layoutAnchor === 'center' ? 'center' : 'left-top' });
                 setNewPageSize('A4');
                 setNewPageOrientation('portrait');
               }}
@@ -788,6 +789,45 @@ export function LayoutView() {
                   全体
                 </button>
               </div>
+              {/* 中央寄せトグル: 詰めた塊を用紙の中央に置く（上下左右の余白を均等に） */}
+              <button
+                className={`px-2 py-0.5 text-xs font-medium rounded border ${
+                  settings.layoutAnchor === 'center'
+                    ? 'bg-purple-500 text-white border-purple-500'
+                    : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-100'
+                }`}
+                onClick={() =>
+                  updateSettings({
+                    layoutAnchor:
+                      settings.layoutAnchor === 'center'
+                        ? settings.writingDirection === 'vertical'
+                          ? 'right-top'
+                          : 'left-top'
+                        : 'center',
+                  })
+                }
+                title="オン=詰めた塊を用紙の中央に配置（上下左右の余白を均等に）／オフ=角に寄せる"
+              >
+                中央
+              </button>
+              {/* 余白ゼロ: このページの上下左右余白を0にして紙いっぱいに詰め直す */}
+              <button
+                className="px-2 py-0.5 text-xs font-medium rounded border bg-white text-purple-700 border-purple-300 hover:bg-purple-100"
+                onClick={() => {
+                  if (!activeLayout) return;
+                  zeroPageMarginsAndRepack(activeLayout.id);
+                  const skipped = useAppStore.getState().lastRepackSkippedCount;
+                  setUndoToast(
+                    skipped > 0
+                      ? `余白ゼロで詰め直しました。⚠ ${skipped}件は収まらず元の位置のままです（Ctrl+Zで戻せます）`
+                      : '余白をゼロにして紙いっぱいに詰め直しました（Ctrl+Z で戻せます）'
+                  );
+                  setTimeout(() => setUndoToast(null), skipped > 0 ? 6000 : 3000);
+                }}
+                title="このページの上下左右の余白を0にして紙いっぱいに詰め直す（Ctrl+Zで戻せます）"
+              >
+                余白ゼロ
+              </button>
               {/* グリッドパターン選択＋配置順プレビュー（全体モード時のみ表示） */}
               {arrangeScope === 'all' && (
                 <>
@@ -827,7 +867,7 @@ export function LayoutView() {
                     setTimeout(() => setUndoToast(null), skipped > 0 ? 6000 : 3000);
                   }
                 }}
-                title={`${settings.writingDirection === 'vertical' ? '右上' : '左上'}基準で詰める（${settings.writingDirection === 'vertical' ? '縦書き' : '横書き'}）`}
+                title={`${settings.layoutAnchor === 'center' ? '用紙中央' : settings.writingDirection === 'vertical' ? '右上' : '左上'}基準で詰める（${settings.writingDirection === 'vertical' ? '縦書き' : '横書き'}）`}
               >
                 実行
               </button>

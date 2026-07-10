@@ -1473,17 +1473,29 @@ export const useAppStore = create<Store>()(
         const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
         const sizeMap = new Map<string, { width: number; height: number }>();
 
+        // 中央寄せ（layoutAnchor==='center'）: 詰めた塊を利用可能領域の中央に置く。
+        // 水平=塊の左右中央、垂直=最も高い列を基準に上下中央（列頭は揃える）。
+        // サイズは変えないので鮮明さに影響しない。角寄せ時はオフセット0で従来どおり。
+        const isCenter = settings.layoutAnchor === 'center';
+        const usedWidth = totalColWidth * scale;
+        const blockHeight = columns.reduce(
+          (m, col) => (col.snippetIds.length > 0 ? Math.max(m, col.usedHeight * scale) : m),
+          0
+        );
+        const xOffset = isCenter ? Math.max(0, (availableWidth - usedWidth) / 2) : 0;
+        const yOffset = isCenter ? Math.max(0, (availableHeight - blockHeight) / 2) : 0;
+
         if (isVertical) {
           // 縦書き: 右端から左へ詰める
           // columns[maxCols-1]が右端の列（スニペット1,3,...）
-          let cursorX = availableWidth;
+          let cursorX = availableWidth - xOffset;
           for (let ci = maxCols - 1; ci >= 0; ci--) {
             const col = columns[ci];
             if (col.snippetIds.length === 0) continue;
             const effectiveColWidth = col.maxWidth * scale;
             cursorX -= effectiveColWidth;
             const clampedX = Math.max(0, cursorX);
-            let cursorY = 0;
+            let cursorY = yOffset;
             for (let i = 0; i < col.snippetIds.length; i++) {
               const w = col.sizes[i].width * scale;
               const h = col.sizes[i].height * scale;
@@ -1496,12 +1508,12 @@ export const useAppStore = create<Store>()(
         } else {
           // 横書き: 左端から右へ詰める
           // columns[0]が左端の列（スニペット1,3,...）
-          let cursorX = 0;
+          let cursorX = xOffset;
           for (let ci = 0; ci < maxCols; ci++) {
             const col = columns[ci];
             if (col.snippetIds.length === 0) continue;
             const effectiveColWidth = col.maxWidth * scale;
-            let cursorY = 0;
+            let cursorY = yOffset;
             for (let i = 0; i < col.snippetIds.length; i++) {
               const w = col.sizes[i].width * scale;
               const h = col.sizes[i].height * scale;
@@ -1534,6 +1546,20 @@ export const useAppStore = create<Store>()(
               : p
           ),
         }));
+      },
+
+      // 余白ゼロ: このページの上下左右余白を0にして紙いっぱいに詰め直す。
+      // 中央トグル(layoutAnchor==='center')が有効なら中央寄せで、無効なら角寄せで詰める。
+      // サイズは変えないので鮮明さに影響しない。Undo可（余白変更→詰め直しの2段階）。
+      zeroPageMarginsAndRepack: (pageId: string) => {
+        get().pushLayoutHistory();
+        set((state) => ({
+          layoutPages: state.layoutPages.map((p) =>
+            p.id === pageId ? { ...p, margin: 0, marginX: 0, marginY: 0 } : p
+          ),
+        }));
+        // 広がった領域に合わせて詰め直す（repackAllSnippets 内部でも履歴を積む）
+        get().repackAllSnippets(pageId);
       },
 
       // 全ページを跨いで詰め直す（カラムパッキング・隙間なし）
@@ -1686,13 +1712,24 @@ export const useAppStore = create<Store>()(
           // 使用列の合計幅を計算（はみ出し防止用）
           const totalColWidth = page.columns.reduce((sum, col) =>
             sum + (col.snippets.length > 0 ? col.maxWidth : 0), 0);
+          const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
+
+          // 中央寄せ（layoutAnchor==='center'）: 詰めた塊をページの中央に置く。サイズ不変＝鮮明。
+          const isCenter = settings.layoutAnchor === 'center';
+          const usedWidth = totalColWidth * scale;
+          const blockHeight = page.columns.reduce(
+            (m, col) => (col.snippets.length > 0
+              ? Math.max(m, col.snippets.reduce((s, p) => s + p.size.height * scale, 0))
+              : m),
+            0
+          );
+          const xOffset = isCenter ? Math.max(0, (availableWidth - usedWidth) / 2) : 0;
+          const yOffset = isCenter ? Math.max(0, (availableHeight - blockHeight) / 2) : 0;
 
           if (isVertical) {
             // 縦書き: 右端から左へ詰める
             // columns[maxCols-1]が右端の列（スニペット1,3,...）
-            // 合計幅がavailableWidthを超える場合は列幅を縮小スケール
-            const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
-            let cursorX = availableWidth;
+            let cursorX = availableWidth - xOffset;
             for (let ci = maxCols - 1; ci >= 0; ci--) {
               const col = page.columns[ci];
               if (col.snippets.length === 0) continue;
@@ -1700,7 +1737,7 @@ export const useAppStore = create<Store>()(
               cursorX -= effectiveColWidth;
               // 負座標にならないようクランプ
               const clampedX = Math.max(0, cursorX);
-              let cursorY = 0;
+              let cursorY = yOffset;
               for (const placed of col.snippets) {
                 // K-07: 縮小時は高さも同率で縮めアスペクト比を維持（従来は幅のみで横潰れ）
                 const snippetWidth = placed.size.width * scale;
@@ -1717,13 +1754,12 @@ export const useAppStore = create<Store>()(
           } else {
             // 横書き: 左端から右へ詰める
             // columns[0]が左端の列（スニペット1,3,...）
-            const scale = totalColWidth > availableWidth ? availableWidth / totalColWidth : 1;
-            let cursorX = 0;
+            let cursorX = xOffset;
             for (let ci = 0; ci < maxCols; ci++) {
               const col = page.columns[ci];
               if (col.snippets.length === 0) continue;
               const effectiveColWidth = col.maxWidth * scale;
-              let cursorY = 0;
+              let cursorY = yOffset;
               for (const placed of col.snippets) {
                 // K-07: 縮小時は高さも同率で縮めアスペクト比を維持（従来は幅のみで横潰れ）
                 const snippetWidth = placed.size.width * scale;
