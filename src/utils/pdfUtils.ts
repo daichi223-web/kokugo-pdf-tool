@@ -315,6 +315,10 @@ export interface PDFData {
   height: number;
 }
 
+// 1ファイルの上限。メモリを食うのはファイルサイズではなくページ数×取り込み画像なので、
+// スキャンPDF（1ページ数MB）でも通るよう大きめに取る。ブラウザのタブメモリ上限に対する安全弁。
+export const MAX_PDF_SIZE_MB = 300;
+
 /**
  * PDFファイルを読み込む
  * P1-001: PDF読み込み（単体）
@@ -327,8 +331,8 @@ export async function loadPDF(file: File): Promise<PDFData> {
   if (file.size === 0) {
     throw new Error('ファイルが空です');
   }
-  if (file.size > 50 * 1024 * 1024) {
-    throw new Error('ファイルサイズが50MBを超えています');
+  if (file.size > MAX_PDF_SIZE_MB * 1024 * 1024) {
+    throw new Error(`ファイルサイズが${MAX_PDF_SIZE_MB}MBを超えています`);
   }
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
     throw new Error('PDFファイルではありません');

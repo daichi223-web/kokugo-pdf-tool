@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { useCallback } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import {
   Upload,
   File,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { formatFileSize } from '../utils/helpers';
+import { MAX_PDF_SIZE_MB } from '../utils/pdfUtils';
 
 export function Sidebar() {
   const { files, activeFileId, addFiles, removeFile, setActiveFile } = useAppStore();
@@ -32,12 +33,26 @@ export function Sidebar() {
     [addFiles]
   );
 
+  // 上限超えなどで弾かれたファイルは黙って消えるので、理由を知らせる
+  const onDropRejected = useCallback((rejections: FileRejection[]) => {
+    const lines = rejections.map(({ file, errors }) => {
+      const reason = errors.some((e) => e.code === 'file-too-large')
+        ? `${MAX_PDF_SIZE_MB}MBを超えています（${formatFileSize(file.size)}）`
+        : errors.some((e) => e.code === 'too-many-files')
+          ? '一度に選べるのは10ファイルまでです'
+          : errors.map((e) => e.message).join(' / ');
+      return `・${file.name}: ${reason}`;
+    });
+    alert(`読み込めなかったファイルがあります\n${lines.join('\n')}`);
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected,
     accept: {
       'application/pdf': ['.pdf'],
     },
-    maxSize: 50 * 1024 * 1024, // 50MB
+    maxSize: MAX_PDF_SIZE_MB * 1024 * 1024,
     maxFiles: 10,
   });
 
@@ -70,7 +85,7 @@ export function Sidebar() {
               : 'PDFをドラッグ&ドロップ\nまたはクリックして選択'}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            最大10ファイル、50MB/ファイル
+            最大10ファイル、{MAX_PDF_SIZE_MB}MB/ファイル
           </p>
         </div>
       </div>
