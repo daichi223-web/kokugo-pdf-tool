@@ -25,7 +25,7 @@ interface CropToolProps {
   onTemplateApplied?: () => void;
   batchMode?: boolean;
   onBatchCrop?: (cropArea: CropArea) => void;
-  onCropComplete?: () => void;
+  onCropComplete?: (newSnippetId?: string) => void; // 新規切り出し時は追加したスニペットの id を渡す（自動配置用）
   updateSnippetId?: string | null;  // 更新モード用：既存スニペットのID
   initialCropArea?: CropArea | null;  // 再トリミング用：初期選択範囲
 }
@@ -395,6 +395,7 @@ export function CropTool({
       height: cropH,
     };
 
+    let newSnippetId: string | undefined;
     // BATCH-002: 一括モードの場合はonBatchCropを呼び出し
     if (batchMode && onBatchCrop) {
       onBatchCrop(roundedCropArea);
@@ -408,7 +409,7 @@ export function CropTool({
         imageData: croppedImageData,
       });
     } else {
-      addSnippet({
+      newSnippetId = addSnippet({
         sourceFileId,
         sourcePageNumber,
         cropArea: roundedCropArea,
@@ -419,9 +420,9 @@ export function CropTool({
 
     setSelection(null);
 
-    // 再トリミング完了コールバック
+    // 完了コールバック（新規切り出しなら id 付き＝呼び出し側で自動配置できる）
     if (onCropComplete) {
-      onCropComplete();
+      onCropComplete(newSnippetId);
     }
   }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, zoom, addSnippet, updateSnippet, updateSnippetId, batchMode, onBatchCrop, onCropComplete]);
 
@@ -493,7 +494,7 @@ export function CropTool({
     );
 
     // 常に単体として追加（batchModeを無視）
-    addSnippet({
+    const newSnippetId = addSnippet({
       sourceFileId,
       sourcePageNumber,
       cropArea: roundedCropArea,
@@ -505,7 +506,7 @@ export function CropTool({
 
     // 完了コールバック
     if (onCropComplete) {
-      onCropComplete();
+      onCropComplete(newSnippetId);
     }
   }, [selection, imageData, sourceFileId, sourcePageNumber, templateScope, zoom, addSnippet, onCropComplete]);
 

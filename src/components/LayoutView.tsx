@@ -119,6 +119,7 @@ export function LayoutView() {
     updateSettings,
     selectedPageNumbers,
     addSnippet,
+    addSnippetToLayout,
     applySnippetWidthToLayout,
     applySnippetHeightToLayout,
     reCropSnippetId,
@@ -436,9 +437,25 @@ export function LayoutView() {
 
   // 自動全詰め処理（トリミング後に実行）
   const handleAutoRepack = useCallback(() => {
-    if (!autoRepack || !activeLayoutPageId) return;
-    repackAllSnippets(activeLayoutPageId);
-  }, [autoRepack, activeLayoutPageId, repackAllSnippets]);
+    // 直前にページを自動生成した場合もあるので、クロージャではなく最新のアクティブページを読む
+    const pageId = useAppStore.getState().activeLayoutPageId;
+    if (!autoRepack || !pageId) return;
+    repackAllSnippets(pageId);
+  }, [autoRepack, repackAllSnippets]);
+
+  // K-35: 切り出し直後にレイアウトへ置く（ページが無ければ作る）。「レイアウトに追加」を押す手間を省く
+  const handleAutoPlace = useCallback(
+    (newSnippetId?: string) => {
+      if (!newSnippetId || settings.autoPlaceOnCrop === false) return;
+      let pageId = useAppStore.getState().activeLayoutPageId;
+      if (!pageId) {
+        addLayoutPage(newPageSize, newPageOrientation);
+        pageId = useAppStore.getState().activeLayoutPageId;
+      }
+      if (pageId) addSnippetToLayout(pageId, newSnippetId);
+    },
+    [settings.autoPlaceOnCrop, addLayoutPage, newPageSize, newPageOrientation, addSnippetToLayout]
+  );
 
 
   // PDF出力
@@ -635,6 +652,16 @@ export function LayoutView() {
                 )}
               </div>
             </div>
+            {/* K-35: 切り出し→自動配置トグル */}
+            <button
+              className={`px-2 py-1 text-xs rounded border ${settings.autoPlaceOnCrop !== false ? 'bg-green-500 text-white border-green-600' : 'bg-gray-100 text-gray-600'}`}
+              onClick={() => updateSettings({ autoPlaceOnCrop: settings.autoPlaceOnCrop === false })}
+              title={settings.autoPlaceOnCrop !== false
+                ? '切り出すとすぐレイアウトに置きます（ページが無ければ自動で作成）。クリックでオフ'
+                : '切り出してもスニペット一覧に入るだけ。配置は「レイアウトに追加」で。クリックでオン'}
+            >
+              切り出し→配置{settings.autoPlaceOnCrop !== false ? '✓' : ''}
+            </button>
           </>
         )}
 
@@ -1201,7 +1228,8 @@ export function LayoutView() {
                   onTemplateApplied={() => setPendingTemplate(null)}
                   batchMode={selectedPageNumbers.length > 1}
                   onBatchCrop={handleBatchCrop}
-                  onCropComplete={() => {
+                  onCropComplete={(newSnippetId) => {
+                    handleAutoPlace(newSnippetId);
                     // 自動全詰めのみ実行（サイズ統一は行わない - 各スニペットのアスペクト比を維持）
                     setTimeout(() => {
                       handleAutoRepack();

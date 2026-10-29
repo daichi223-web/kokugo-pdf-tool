@@ -204,6 +204,7 @@ export interface AppSettings {
   showSnippetBorder: boolean; // スニペットに黒い縁取りを表示
   snippetBorderWidth: number; // 縁取りの幅（mm）
   gridPattern: '4x2' | '4x3' | '3x2' | '2x2' | '1x1'; // グリッドパターン（配置・詰め共通）
+  autoPlaceOnCrop?: boolean; // K-35: 切り出し直後にレイアウトへ自動配置（未設定=ON。旧設定の保存値に無くても有効にする）
 }
 
 // ストア関連の型
@@ -251,7 +252,7 @@ export interface AppActions {
   cancelOCR: () => void;
 
   // スニペット操作
-  addSnippet: (snippet: Omit<Snippet, 'id' | 'createdAt'>) => void;
+  addSnippet: (snippet: Omit<Snippet, 'id' | 'createdAt'>) => string; // 追加したスニペットの id を返す
   updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => void;
   removeSnippet: (snippetId: string) => void;
   reorderSnippets: (fromIndex: number, toIndex: number) => void;

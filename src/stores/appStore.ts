@@ -68,6 +68,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showSnippetBorder: false, // スニペット縁取り（デフォルトOFF）
   snippetBorderWidth: 0.5, // 縁取り幅（mm）
   gridPattern: '4x2', // グリッドパターン（配置・詰め共通）
+  autoPlaceOnCrop: true, // K-35: 切り出し→自動配置
 };
 
 // K-17: 新規配置の空き位置を決める。読み順の続き（横書き=最下段の下、縦書き=最左列の左）を優先し、
@@ -522,6 +523,7 @@ export const useAppStore = create<Store>()(
           createdAt: new Date(),
         };
         set((state) => ({ snippets: [...state.snippets, newSnippet] }));
+        return newSnippet.id;
       },
 
       updateSnippet: (snippetId: string, updates: Partial<Omit<Snippet, 'id' | 'createdAt'>>) => {
