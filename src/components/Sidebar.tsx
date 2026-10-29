@@ -124,6 +124,20 @@ export function Sidebar() {
                     <p className="text-xs text-gray-500">
                       {file.pageCount}ページ • {formatFileSize(file.file.size)}
                     </p>
+                    {/* K-34: 読み込み中はページ単位の進捗（出来たページから切り出せる） */}
+                    {file.status === 'processing' && (
+                      <div className="mt-1">
+                        <div className="h-1 bg-gray-200 rounded overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 transition-all"
+                            style={{ width: `${file.pageCount ? (file.pages.length / file.pageCount) * 100 : 0}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-blue-600 mt-0.5">
+                          {file.pages.length}/{file.pageCount || '?'} ページ読み込み中…
+                        </p>
+                      </div>
+                    )}
                     {file.error && (
                       <p className="text-xs text-red-500 mt-1">{file.error}</p>
                     )}

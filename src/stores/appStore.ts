@@ -123,30 +123,48 @@ export const useAppStore = create<Store>()(
         set({ isProcessing: true });
         const { isBenchmarkMode } = get();
 
+        // 該当ファイルだけを差し替える（読み込み中に削除されていれば空振りする）
+        const patchFile = (fileId: string, patch: (f: PDFFile) => PDFFile) =>
+          set((state) => ({ files: state.files.map((f) => (f.id === fileId ? patch(f) : f)) }));
+
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
+          const fileLabel = files.length > 1 ? `[${i + 1}/${files.length}] ${file.name}` : file.name;
           set({
             progress: {
-              current: i + 1,
-              total: files.length,
-              message: `${file.name} を読み込み中...`,
+              phase: 'load',
+              current: 0,
+              total: 1,
+              message: `${fileLabel} を読み込み中...`,
             },
           });
+
+          // K-34: 先に一覧へ登録し、ページは出来た順に追記する（全ページ完了を待たずに切り出せる）
+          const fileId = generateId();
+          set((state) => ({
+            files: [
+              ...state.files,
+              { id: fileId, name: file.name, file, pageCount: 0, pages: [], status: 'processing', createdAt: new Date() },
+            ],
+            activeFileId: state.activeFileId || fileId,
+          }));
 
           try {
             const endPdfLoad = isBenchmarkMode ? startMeasure(`pdf-load-${file.name}`) : null;
             const pdfData = await loadPDF(file);
             endPdfLoad?.({ fileName: file.name, pages: pdfData.numPages });
-
-            const pages: PDFPage[] = [];
+            patchFile(fileId, (f) => ({ ...f, pageCount: pdfData.numPages }));
 
             for (let j = 0; j < pdfData.numPages; j++) {
               const pageNum = j + 1;
+              // 読み込み中にファイルが削除されたら残りは処理しない
+              if (!get().files.some((f) => f.id === fileId)) break;
               set({
                 progress: {
-                  current: i + 1,
-                  total: files.length,
-                  message: `${file.name} - ページ ${pageNum}/${pdfData.numPages} を処理中...`,
+                  phase: 'load',
+                  current: pageNum,
+                  total: pdfData.numPages,
+                  message: `${fileLabel} - ページ ${pageNum}/${pdfData.numPages} を処理中...`,
                 },
               });
 
@@ -174,7 +192,7 @@ export const useAppStore = create<Store>()(
                 await pdfData.pdf.getPage(pageNum)
               ).catch(() => null);
 
-              pages.push({
+              const page: PDFPage = {
                 pageNumber: pageNum,
                 width: pdfData.width,
                 height: pdfData.height,
@@ -185,36 +203,18 @@ export const useAppStore = create<Store>()(
                 textContent: textContent || '',
                 ocrStatus: textContent ? 'completed' : 'pending',
                 ocrProgress: textContent ? 100 : 0,
-              });
+              };
+              patchFile(fileId, (f) => ({ ...f, pages: [...f.pages, page] }));
             }
 
-            const pdfFile: PDFFile = {
-              id: generateId(),
-              name: file.name,
-              file,
-              pageCount: pdfData.numPages,
-              pages,
-              status: 'completed',
-              createdAt: new Date(),
-            };
-
-            set((state) => ({
-              files: [...state.files, pdfFile],
-              activeFileId: state.activeFileId || pdfFile.id,
-            }));
+            patchFile(fileId, (f) => ({ ...f, status: 'completed' }));
           } catch (error) {
             console.error(`Error loading ${file.name}:`, error);
-            const errorFile: PDFFile = {
-              id: generateId(),
-              name: file.name,
-              file,
-              pageCount: 0,
-              pages: [],
+            patchFile(fileId, (f) => ({
+              ...f,
               status: 'error',
               error: error instanceof Error ? error.message : '読み込みエラー',
-              createdAt: new Date(),
-            };
-            set((state) => ({ files: [...state.files, errorFile] }));
+            }));
           }
         }
 

@@ -76,7 +76,8 @@ function App() {
       </div>
 
       {/* プログレスオーバーレイ */}
-      {isProcessing && progress && <ProgressOverlay progress={progress} />}
+      {/* PDF読み込み(phase='load')はサイドバーに進捗を出し、画面を塞がない */}
+      {isProcessing && progress && progress.phase !== 'load' && <ProgressOverlay progress={progress} />}
     </div>
   );
 }

@@ -174,6 +174,7 @@ export interface ProgressInfo {
   total: number;
   message: string;
   estimatedTimeRemaining?: number;
+  phase?: 'load' | 'ocr'; // load=PDF読み込み（画面を塞がずサイドバーに進捗）、未指定/ocr=モーダル表示
 }
 
 // 画像補正設定の型
