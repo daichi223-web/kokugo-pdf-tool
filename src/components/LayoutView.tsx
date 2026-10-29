@@ -106,6 +106,7 @@ export function LayoutView() {
     files,
     activeFileId,
     activePageNumber,
+    setActivePage,
     snippets,
     layoutPages,
     activeLayoutPageId,
@@ -288,6 +289,25 @@ export function LayoutView() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // K-35: トリミング中は ←/→（PageUp/PageDown）で前後のページへ（切り出し→次ページの往復をキーだけで）
+  useEffect(() => {
+    if (mode !== 'crop' || reCropSnippetId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return;
+      const pageCount = activeFile?.pages.length ?? 0;
+      if (pageCount === 0) return;
+      const delta =
+        e.key === 'ArrowRight' || e.key === 'PageDown' ? 1 :
+        e.key === 'ArrowLeft' || e.key === 'PageUp' ? -1 : 0;
+      if (delta === 0) return;
+      e.preventDefault();
+      setActivePage(Math.min(pageCount, Math.max(1, activePageNumber + delta)));
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [mode, reCropSnippetId, activeFile, activePageNumber, setActivePage]);
 
   // ウィンドウリサイズ時に再計算
   useEffect(() => {

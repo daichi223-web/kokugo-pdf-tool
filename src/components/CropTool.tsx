@@ -552,6 +552,34 @@ export function CropTool({
   const buttonPos = getButtonPosition();
   const isValidSelection = selection && selection.width > 10 && selection.height > 10;
 
+  // K-35: Enter=切り出し / Esc=選択解除（入力欄にフォーカス中は無視。ボタンまでマウスを運ばずに済む）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) return;
+      if (e.key === 'Escape' && selection) {
+        e.preventDefault();
+        handleCancel();
+        return;
+      }
+      if (e.key === 'Enter' && isValidSelection && dragMode === 'none') {
+        e.preventDefault();
+        if (batchMode) {
+          handleSingleCrop();
+        } else {
+          handleConfirm();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [selection, isValidSelection, dragMode, batchMode, handleSingleCrop, handleConfirm, handleCancel]);
+
   // カーソル判定
   const handleMouseMoveForCursor = useCallback((e: React.MouseEvent) => {
     if (dragMode !== 'none') return;
@@ -579,6 +607,12 @@ export function CropTool({
             範囲内で移動・角でリサイズ
           </>
         )}
+        <span className="mx-1">|</span>
+        <span className="text-xs text-gray-200">
+          <kbd className="px-1 bg-gray-700 rounded">Enter</kbd> 切り出し
+          <kbd className="ml-1 px-1 bg-gray-700 rounded">Esc</kbd> 取消
+          <kbd className="ml-1 px-1 bg-gray-700 rounded">←</kbd><kbd className="px-1 bg-gray-700 rounded">→</kbd> ページ
+        </span>
       </div>
 
       {/* エラーメッセージ */}
