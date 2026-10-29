@@ -263,7 +263,7 @@ export interface AppActions {
   clearAllPlacements: () => void;
   moveLayoutPage: (pageId: string, direction: 'up' | 'down') => void;
   setActiveLayoutPage: (pageId: string | null) => void;
-  addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => void;
+  addSnippetToLayout: (pageId: string, snippetId: string, position?: Position) => void; // position 省略時は空き位置へ（K-17）
   updateSnippetPosition: (pageId: string, snippetId: string, position: Position) => void;
   updateSnippetSize: (pageId: string, snippetId: string, size: Size) => void;
   applySnippetWidthToLayout: (pageId: string, targetWidth: number) => void;

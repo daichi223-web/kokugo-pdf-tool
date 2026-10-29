@@ -70,6 +70,57 @@ const DEFAULT_SETTINGS: AppSettings = {
   gridPattern: '4x2', // グリッドパターン（配置・詰め共通）
 };
 
+// K-17: 新規配置の空き位置を決める。読み順の続き（横書き=最下段の下、縦書き=最左列の左）を優先し、
+// 用紙に収まらなければもう一方の方向、どちらも無理なら従来のカスケード（少しずつずらす）に落とす。
+function findFreePosition(
+  page: LayoutPage,
+  size: Size,
+  writingDirection: 'vertical' | 'horizontal'
+): Position {
+  const paper = getPaperDimensions(page.paperSize, page.orientation);
+  const marginX = mmToPx(page.marginX ?? page.margin ?? 15, 96);
+  const marginY = mmToPx(page.marginY ?? page.margin ?? 15, 96);
+  const availW = mmToPx(paper.width, 96) - marginX * 2;
+  const availH = mmToPx(paper.height, 96) - marginY * 2;
+  const gap = mmToPx(5, 96);
+  const placed = page.snippets;
+
+  const fits = (p: Position) =>
+    p.x >= 0 && p.y >= 0 && p.x + size.width <= availW + 0.5 && p.y + size.height <= availH + 0.5;
+  const overlaps = (p: Position) =>
+    placed.some(
+      (s) =>
+        p.x < s.position.x + s.size.width &&
+        p.x + size.width > s.position.x &&
+        p.y < s.position.y + s.size.height &&
+        p.y + size.height > s.position.y
+    );
+
+  if (placed.length === 0) {
+    return writingDirection === 'vertical' ? { x: Math.max(0, availW - size.width), y: 0 } : { x: 0, y: 0 };
+  }
+
+  const maxBottom = Math.max(...placed.map((s) => s.position.y + s.size.height));
+  const maxRight = Math.max(...placed.map((s) => s.position.x + s.size.width));
+  const minLeft = Math.min(...placed.map((s) => s.position.x));
+  const candidates: Position[] =
+    writingDirection === 'vertical'
+      ? [
+          { x: minLeft - gap - size.width, y: 0 },
+          { x: Math.max(0, availW - size.width), y: maxBottom + gap },
+        ]
+      : [
+          { x: 0, y: maxBottom + gap },
+          { x: maxRight + gap, y: 0 },
+        ];
+  for (const c of candidates) {
+    if (fits(c) && !overlaps(c)) return c;
+  }
+  // どこにも収まらない: 既存数に応じてずらして置く（完全重なりだけは避ける）
+  const offset = (placed.length % 10) * 20;
+  return { x: 10 + offset, y: 10 + offset };
+}
+
 interface Store extends AppState, AppActions {
   // パフォーマンス計測
   benchmarkResult: BenchmarkResult | null;
@@ -614,7 +665,7 @@ export const useAppStore = create<Store>()(
         set({ activeLayoutPageId: pageId, selectedSnippetIds: [] });
       },
 
-      addSnippetToLayout: (pageId: string, snippetId: string, position: Position) => {
+      addSnippetToLayout: (pageId: string, snippetId: string, position?: Position) => {
         // Undo用に履歴を保存
         get().pushLayoutHistory();
 
@@ -652,6 +703,10 @@ export const useAppStore = create<Store>()(
           }
         }
 
+        // K-17: 位置の指定が無ければ、既存と重ならない空き位置へ
+        const finalPosition =
+          position ?? (targetPage ? findFreePosition(targetPage, initialSize, settings.writingDirection) : { x: 0, y: 0 });
+
         set((state) => ({
           layoutPages: state.layoutPages.map((page) =>
             page.id === pageId
@@ -661,7 +716,7 @@ export const useAppStore = create<Store>()(
                     ...page.snippets,
                     {
                       snippetId,
-                      position,
+                      position: finalPosition,
                       size: initialSize,
                       rotation: 0,
                     },
