@@ -138,6 +138,7 @@ export function LayoutView() {
     repackAllSnippets,
     repackAcrossPages,
     zeroPageMarginsAndRepack,
+    resetLayoutPages,
     unifyAllPagesSnippetSize,
   } = useAppStore();
 
@@ -977,6 +978,32 @@ export function LayoutView() {
               <Plus className="w-3 h-3" />
             </button>
           </div>
+
+          {/* 配置のリセット: 全ページを外して空の1ページに戻す（スニペット自体は残る・Ctrl+Z で戻せる） */}
+          <button
+            className="flex items-center gap-1 px-2 py-1 text-xs bg-white text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
+            disabled={layoutPages.length === 0}
+            onClick={() => {
+              const placed = layoutPages.reduce(
+                (n, p) => n + p.snippets.length + (p.textElements?.length ?? 0) + (p.shapeElements?.length ?? 0),
+                0
+              );
+              if (
+                !window.confirm(
+                  `配置をリセットしますか？\n全${layoutPages.length}ページ・配置${placed}件を外して、空の1ページ（${newPageSize}・${newPageOrientation === 'portrait' ? '縦' : '横'}）に戻します。\nスニペット自体は残ります。Ctrl+Z で戻せます。`
+                )
+              ) return;
+              resetLayoutPages(newPageSize, newPageOrientation);
+              setPageGapX(0);
+              setPageGapY(0);
+              setUndoToast('配置をリセットしました（Ctrl+Z で元に戻せます）');
+              setTimeout(() => setUndoToast(null), 3000);
+            }}
+            title="全ページの配置を外して、空の1ページに戻す（スニペットは残る・Ctrl+Zで戻せます）"
+          >
+            <RotateCcw className="w-3 h-3" />
+            リセット
+          </button>
 
           {/* 追加グループ */}
           <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 rounded border">

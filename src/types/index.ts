@@ -262,6 +262,7 @@ export interface AppActions {
   addLayoutPage: (paperSize: PaperSize, orientation: PaperOrientation) => void;
   removeLayoutPage: (pageId: string) => void;
   clearAllPlacements: () => void;
+  resetLayoutPages: (paperSize: PaperSize, orientation: PaperOrientation) => void; // 配置のリセット（空の1ページに戻す）
   moveLayoutPage: (pageId: string, direction: 'up' | 'down') => void;
   setActiveLayoutPage: (pageId: string | null) => void;
   addSnippetToLayout: (pageId: string, snippetId: string, position?: Position) => void; // position 省略時は空き位置へ（K-17）

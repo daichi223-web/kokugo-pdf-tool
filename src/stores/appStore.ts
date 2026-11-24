@@ -646,6 +646,28 @@ export const useAppStore = create<Store>()(
         }));
       },
 
+      // 配置のリセット: 全ページを外して空の1ページだけにする（ページ数も1に戻る）。
+      // スニペット自体は残す。履歴は全ページのスナップショットなので Ctrl+Z で戻せる
+      resetLayoutPages: (paperSize: PaperSize, orientation: PaperOrientation) => {
+        get().pushLayoutHistory();
+        const newPage: LayoutPage = {
+          id: generateId(),
+          paperSize,
+          orientation,
+          snippets: [],
+          textElements: [],
+          shapeElements: [],
+        };
+        set({
+          layoutPages: [newPage],
+          activeLayoutPageId: newPage.id,
+          selectedSnippetId: null,
+          selectedSnippetIds: [],
+          selectedTextId: null,
+          selectedShapeId: null,
+        });
+      },
+
       // ページ順序を移動
       moveLayoutPage: (pageId: string, direction: 'up' | 'down') => {
         set((state) => {
